@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, formatTimeNow } from '@/lib/db';
+import { getDb, formatTimeNow, extractLast3Digits } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
     if (!memberId || !password) {
       return NextResponse.json(
-        { error: 'Por favor, selecione seu nome e digite sua senha.' },
+        { error: 'Por favor, selecione seu nome e digite os 3 últimos dígitos do seu celular.' },
         { status: 400 }
       );
     }
@@ -39,10 +39,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Valida a senha (case-sensitive ou trim)
-    if (String(member.password).trim() !== String(password).trim()) {
+    // Extrai os 3 últimos dígitos esperados (do celular cadastrado ou do campo password)
+    const expectedDigits = extractLast3Digits(member.phone, member.password);
+    const inputClean = String(password).trim();
+    const inputDigits = inputClean.replace(/\D/g, '');
+
+    const isValid =
+      (expectedDigits && inputDigits === expectedDigits) ||
+      (expectedDigits && inputClean === expectedDigits) ||
+      String(member.password).trim() === inputClean;
+
+    if (!isValid) {
       return NextResponse.json(
-        { error: 'Senha incorreta. Tente novamente ou consulte a coordenação.' },
+        {
+          error:
+            'Os 3 últimos dígitos do celular não conferem. Verifique e tente novamente.',
+        },
         { status: 401 }
       );
     }

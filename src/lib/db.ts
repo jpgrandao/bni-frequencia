@@ -47,13 +47,31 @@ export interface VisitorAttendance {
   check_in_time: string;
 }
 
+export function extractLast3Digits(phone?: string, fallback?: string): string {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length >= 3) {
+    return digits.slice(-3);
+  }
+  const fallbackDigits = String(fallback || '').replace(/\D/g, '');
+  if (fallbackDigits.length >= 3) {
+    return fallbackDigits.slice(-3);
+  }
+  return String(fallback || digits || '').trim();
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __bni_db: any;
+  // eslint-disable-next-line no-var
+  var __bni_digits_synced: boolean | undefined;
 }
 
 export function getDb() {
   if (global.__bni_db) {
+    if (!global.__bni_digits_synced) {
+      syncMemberLast3Digits(global.__bni_db);
+      global.__bni_digits_synced = true;
+    }
     return global.__bni_db;
   }
 
@@ -127,8 +145,30 @@ export function getDb() {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('admin_password', defaultAdminPassword);
   }
 
+  syncMemberLast3Digits(db);
+
   global.__bni_db = db;
+  global.__bni_digits_synced = true;
   return db;
+}
+
+function syncMemberLast3Digits(db: any) {
+  try {
+    const members = db.prepare('SELECT id, phone, password FROM members').all() as {
+      id: number;
+      phone: string;
+      password: string;
+    }[];
+    const updateStmt = db.prepare('UPDATE members SET password = ? WHERE id = ?');
+    for (const m of members) {
+      const last3 = extractLast3Digits(m.phone, m.password);
+      if (last3 && last3 !== m.password) {
+        updateStmt.run(last3, m.id);
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar 3 últimos dígitos:', err);
+  }
 }
 
 export function formatTimeNow(): string {

@@ -1,7 +1,26 @@
 import { NextResponse } from 'next/server';
+import os from 'os';
 import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+
+function getLocalNetworkIp(): string | null {
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      const netList = interfaces[name];
+      if (!netList) continue;
+      for (const net of netList) {
+        if (net.family === 'IPv4' && !net.internal) {
+          return net.address;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
 
 export async function GET() {
   try {
@@ -12,7 +31,7 @@ export async function GET() {
       .prepare("SELECT * FROM assemblies WHERE status = 'open' ORDER BY id DESC LIMIT 1")
       .get();
 
-    // Lista de membros ativos (sem expor a senha!)
+    // Lista de membros ativos (sem expor a senha/dígitos!)
     const members = db
       .prepare('SELECT id, name, company FROM members WHERE active = 1 ORDER BY name ASC')
       .all();
@@ -25,8 +44,11 @@ export async function GET() {
       checkedInMemberIds = attendances.map((a) => a.member_id);
     }
 
+    const lanIp = getLocalNetworkIp();
+
     return NextResponse.json({
       assembly: activeAssembly || null,
+      lanIp,
       members: members.map((m: any) => ({
         id: m.id,
         name: m.name,

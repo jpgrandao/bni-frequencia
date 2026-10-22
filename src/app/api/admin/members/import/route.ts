@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { getDb, formatDateISO } from '@/lib/db';
+import { getDb, formatDateISO, extractLast3Digits } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,25 +81,32 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const password =
+      const phone =
+        normalizedRow['telefone'] ||
+        normalizedRow['celular'] ||
+        normalizedRow['contato'] ||
+        normalizedRow['whatsapp'] ||
+        normalizedRow['fone'] ||
+        normalizedRow['phone'] ||
+        '';
+
+      const explicitCode =
         normalizedRow['senha'] ||
+        normalizedRow['digitos'] ||
+        normalizedRow['3 digitos'] ||
         normalizedRow['pin'] ||
         normalizedRow['codigo'] ||
         normalizedRow['password'] ||
-        '1234';
+        '';
+
+      // Prioriza os 3 últimos dígitos do celular; se não houver celular, usa a coluna de código/senha
+      const password = extractLast3Digits(phone, explicitCode) || '000';
 
       const company =
         normalizedRow['empresa'] ||
         normalizedRow['negocio'] ||
+        normalizedRow['especialidade'] ||
         normalizedRow['company'] ||
-        '';
-
-      const phone =
-        normalizedRow['telefone'] ||
-        normalizedRow['contato'] ||
-        normalizedRow['celular'] ||
-        normalizedRow['whatsapp'] ||
-        normalizedRow['phone'] ||
         '';
 
       // Verifica se já existe membro com o mesmo nome
@@ -121,7 +128,7 @@ export async function POST(req: NextRequest) {
       importedCount,
       updatedCount,
       skippedCount,
-      message: `Importação concluída! ${importedCount} novos membros adicionados e ${updatedCount} atualizados.`,
+      message: `Importação concluída! ${importedCount} novos membros adicionados e ${updatedCount} atualizados (3 últimos dígitos do celular configurados automaticamente).`,
     });
   } catch (error: any) {
     console.error('Erro ao importar planilha de membros:', error);

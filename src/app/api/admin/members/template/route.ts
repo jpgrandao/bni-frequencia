@@ -11,9 +11,8 @@ export async function GET() {
 
     sheet.columns = [
       { header: 'Nome', key: 'nome', width: 35 },
-      { header: 'Senha', key: 'senha', width: 18 },
-      { header: 'Empresa', key: 'empresa', width: 30 },
-      { header: 'Telefone', key: 'telefone', width: 22 },
+      { header: 'Telefone', key: 'telefone', width: 24 },
+      { header: 'Empresa', key: 'empresa', width: 35 },
     ];
 
     // Estilizar cabeçalho
@@ -27,24 +26,21 @@ export async function GET() {
     headerRow.alignment = { vertical: 'middle', horizontal: 'left' };
     headerRow.height = 26;
 
-    // Linhas de exemplo
+    // Linhas de exemplo (os 3 últimos dígitos do telefone serão usados na confirmação)
     sheet.addRow({
       nome: 'João Silva',
-      senha: '101',
+      telefone: '(48) 99999-0101',
       empresa: 'Silva Consultoria',
-      telefone: '(11) 99999-0001',
     });
     sheet.addRow({
       nome: 'Maria Oliveira',
-      senha: '102',
+      telefone: '(48) 99999-0202',
       empresa: 'Oliveira Arquitetura',
-      telefone: '(11) 99999-0002',
     });
     sheet.addRow({
       nome: 'Pedro Santos',
-      senha: '103',
+      telefone: '(48) 99999-0303',
       empresa: 'Santos Tecnologia',
-      telefone: '(11) 99999-0003',
     });
 
     const buffer = await workbook.xlsx.writeBuffer();

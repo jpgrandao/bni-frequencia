@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, formatDateISO } from '@/lib/db';
+import { getDb, formatDateISO, extractLast3Digits } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
     // Opção de popular dados de exemplo para teste rápido
     if (body.action === 'seed_sample') {
       const sampleMembers = [
-        { name: 'Ana Carolina Mendes', password: '101', company: 'Mendes Contabilidade', phone: '(11) 99111-1111' },
-        { name: 'Bruno Ferreira Costa', password: '102', company: 'Costa Advocacia Empresarial', phone: '(11) 99222-2222' },
-        { name: 'Carlos Eduardo Rocha', password: '103', company: 'Rocha Engenharia Civil', phone: '(11) 99333-3333' },
-        { name: 'Daniela Souza Lima', password: '104', company: 'Agência Criativa Digital', phone: '(11) 99444-4444' },
-        { name: 'Eduardo Henrique Alves', password: '105', company: 'Alves Seguros e Consórcios', phone: '(11) 99555-5555' },
-        { name: 'Fernanda Oliveira Santos', password: '106', company: 'Clínica Odonto Prime', phone: '(11) 99666-6666' },
+        { name: 'Ana Carolina Mendes', phone: '(11) 99111-1101', company: 'Mendes Contabilidade' },
+        { name: 'Bruno Ferreira Costa', phone: '(11) 99222-2102', company: 'Costa Advocacia Empresarial' },
+        { name: 'Carlos Eduardo Rocha', phone: '(11) 99333-3103', company: 'Rocha Engenharia Civil' },
+        { name: 'Daniela Souza Lima', phone: '(11) 99444-4104', company: 'Agência Criativa Digital' },
+        { name: 'Eduardo Henrique Alves', phone: '(11) 99555-5105', company: 'Alves Seguros e Consórcios' },
+        { name: 'Fernanda Oliveira Santos', phone: '(11) 99666-6106', company: 'Clínica Odonto Prime' },
       ];
 
       const insertStmt = db.prepare(
@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
           .prepare('SELECT id FROM members WHERE LOWER(name) = LOWER(?)')
           .get(m.name);
         if (!exists) {
-          insertStmt.run(m.name, m.password, m.company, m.phone, now);
+          const digits = extractLast3Digits(m.phone);
+          insertStmt.run(m.name, digits, m.company, m.phone, now);
           added++;
         }
       }
@@ -53,10 +54,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { name, password, company = '', phone = '' } = body;
-    if (!name?.trim() || !password?.trim()) {
+    const { name, password = '', company = '', phone = '' } = body;
+    const digits = extractLast3Digits(phone, password);
+
+    if (!name?.trim() || !digits) {
       return NextResponse.json(
-        { error: 'Nome e senha do membro são obrigatórios.' },
+        { error: 'Nome e Celular (ou os 3 últimos dígitos) são obrigatórios.' },
         { status: 400 }
       );
     }
@@ -65,12 +68,12 @@ export async function POST(req: NextRequest) {
       .prepare(
         'INSERT INTO members (name, password, company, phone, active, created_at) VALUES (?, ?, ?, ?, 1, ?)'
       )
-      .run(name.trim(), String(password).trim(), company.trim(), phone.trim(), now);
+      .run(name.trim(), digits, company.trim(), phone.trim(), now);
 
     return NextResponse.json({
       success: true,
       id: Number(result.lastInsertRowid),
-      message: 'Membro cadastrado com sucesso!',
+      message: `Membro cadastrado! Código de confirmação: ${digits}`,
     });
   } catch (error: any) {
     console.error('Erro ao criar membro:', error);
@@ -81,11 +84,12 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, password, company = '', phone = '', active = 1 } = body;
+    const { id, name, password = '', company = '', phone = '', active = 1 } = body;
+    const digits = extractLast3Digits(phone, password);
 
-    if (!id || !name?.trim() || !password?.trim()) {
+    if (!id || !name?.trim() || !digits) {
       return NextResponse.json(
-        { error: 'ID, Nome e Senha são obrigatórios.' },
+        { error: 'ID, Nome e Celular (ou 3 últimos dígitos) são obrigatórios.' },
         { status: 400 }
       );
     }
@@ -95,7 +99,7 @@ export async function PUT(req: NextRequest) {
       'UPDATE members SET name = ?, password = ?, company = ?, phone = ?, active = ? WHERE id = ?'
     ).run(
       name.trim(),
-      String(password).trim(),
+      digits,
       company.trim(),
       phone.trim(),
       active ? 1 : 0,

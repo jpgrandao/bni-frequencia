@@ -110,7 +110,7 @@ export default function AdminPage() {
   // Estado de Membros
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
-  const [showPasswords, setShowPasswords] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(true);
   const [memberSearch, setMemberSearch] = useState('');
 
   // Formulário Novo Membro Manual
@@ -341,8 +341,8 @@ export default function AdminPage() {
 
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMemberName.trim() || !newMemberPassword.trim()) {
-      showNotice('error', 'Nome e senha do membro são obrigatórios.');
+    if (!newMemberName.trim() || (!newMemberPhone.trim() && !newMemberPassword.trim())) {
+      showNotice('error', 'Informe o Nome e o Celular (ou os 3 últimos dígitos).');
       return;
     }
 
@@ -444,7 +444,7 @@ export default function AdminPage() {
   // Tela de Login Admin
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto mt-8 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
+      <div className="max-w-md mx-auto mt-6 sm:mt-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-bni-lightred text-bni-red flex items-center justify-center mx-auto">
             <ShieldCheck className="w-7 h-7" />
@@ -470,7 +470,7 @@ export default function AdminPage() {
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder="Digite a senha (padrão: admin123)"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
               />
             </div>
           </div>
@@ -483,7 +483,7 @@ export default function AdminPage() {
 
           <button
             type="submit"
-            className="w-full py-3 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl shadow-sm transition-colors text-sm"
+            className="w-full py-3.5 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl shadow-sm transition-colors text-sm"
           >
             Entrar no Painel
           </button>
@@ -501,19 +501,20 @@ export default function AdminPage() {
   const filteredMembers = members.filter(
     (m) =>
       m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-      (m.company && m.company.toLowerCase().includes(memberSearch.toLowerCase()))
+      (m.company && m.company.toLowerCase().includes(memberSearch.toLowerCase())) ||
+      (m.phone && m.phone.includes(memberSearch))
   );
 
   return (
     <div className="space-y-6">
       {/* Barra de Topo do Admin */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-bni-lightred text-bni-red flex items-center justify-center shrink-0">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900">
+            <h1 className="text-lg sm:text-xl font-extrabold text-slate-900">
               Painel do Administrador
             </h1>
             <p className="text-xs text-slate-500">
@@ -525,32 +526,32 @@ export default function AdminPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab('assemblies')}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            className={`flex-1 sm:flex-initial justify-center px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
               activeTab === 'assemblies'
                 ? 'bg-bni-red text-white shadow-sm'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Calendar className="w-4 h-4" />
-            Assembleias / Reuniões ({assemblies.length})
+            Assembleias ({assemblies.length})
           </button>
 
           <button
             onClick={() => setActiveTab('members')}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            className={`flex-1 sm:flex-initial justify-center px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
               activeTab === 'members'
                 ? 'bg-bni-red text-white shadow-sm'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Users className="w-4 h-4" />
-            Lista de Membros ({members.length})
+            Membros ({members.length})
           </button>
 
           <button
             onClick={handleLogout}
             title="Sair do Admin"
-            className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -582,7 +583,7 @@ export default function AdminPage() {
       {activeTab === 'assemblies' && (
         <div className="space-y-6">
           {/* Card: Abrir / Criar Nova Assembleia */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Plus className="w-5 h-5 text-bni-red" />
               Nova Assembleia / Reunião
@@ -603,8 +604,8 @@ export default function AdminPage() {
                     required
                     value={meetingNumber}
                     onChange={(e) => setMeetingNumber(e.target.value)}
-                    placeholder="Ex.: 154"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                    placeholder="Ex.: 103"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                   />
                 </div>
               </div>
@@ -620,8 +621,8 @@ export default function AdminPage() {
                     required
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Ex.: Hotel Ibis - Auditório Principal"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                    placeholder="Ex.: CRIO / Hotel Ibis"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                   />
                 </div>
               </div>
@@ -635,7 +636,7 @@ export default function AdminPage() {
                   required
                   value={meetingDate}
                   onChange={(e) => setMeetingDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                 />
               </div>
 
@@ -661,7 +662,7 @@ export default function AdminPage() {
           </div>
 
           {/* Lista de Assembleias */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">
                 Assembleias Cadastradas
@@ -692,7 +693,7 @@ export default function AdminPage() {
                           : 'border-slate-200 bg-white'
                       }`}
                     >
-                      <div className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2.5 flex-wrap">
                             <span className="text-lg font-extrabold text-slate-900">
@@ -740,7 +741,7 @@ export default function AdminPage() {
                           {/* Abrir / Fechar */}
                           <button
                             onClick={() => handleToggleAssemblyStatus(a)}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
                               a.status === 'open'
                                 ? 'bg-amber-100 hover:bg-amber-200 text-amber-900'
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
@@ -762,7 +763,7 @@ export default function AdminPage() {
                           {/* Baixar Excel (.xlsx) */}
                           <a
                             href={`/api/admin/assemblies/${a.id}/export`}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-bni-red hover:bg-bni-darkred text-white flex items-center gap-1.5 shadow-sm transition-colors"
+                            className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-bni-red hover:bg-bni-darkred text-white flex items-center gap-1.5 shadow-sm transition-colors"
                           >
                             <Download className="w-4 h-4" />
                             Baixar Excel (.xlsx)
@@ -779,7 +780,7 @@ export default function AdminPage() {
                                 fetchAssemblyDetail(a.id);
                               }
                             }}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center gap-1 transition-colors"
+                            className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center gap-1 transition-colors"
                           >
                             {isExpanded ? (
                               <>
@@ -798,7 +799,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => handleDeleteAssembly(a.id)}
                             title="Excluir Assembleia"
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -807,7 +808,7 @@ export default function AdminPage() {
 
                       {/* Painel Expandido com Detalhes em Tempo Real */}
                       {isExpanded && (
-                        <div className="border-t border-slate-200 p-5 bg-slate-50/70 rounded-b-2xl space-y-6">
+                        <div className="border-t border-slate-200 p-4 sm:p-5 bg-slate-50/70 rounded-b-2xl space-y-6">
                           {loadingDetail || !assemblyDetail ? (
                             <div className="text-center py-4 text-xs text-slate-500">
                               Carregando lista de presença...
@@ -823,7 +824,7 @@ export default function AdminPage() {
                                     {assemblyDetail.allMembers.length})
                                   </h3>
                                   <span className="text-[11px] text-slate-400">
-                                    Clique para marcar/desmarcar manualmente
+                                    Clique para alterar
                                   </span>
                                 </div>
 
@@ -854,7 +855,7 @@ export default function AdminPage() {
                                           onClick={() =>
                                             handleToggleMemberAttendance(a.id, m.id)
                                           }
-                                          className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
+                                          className={`px-2.5 py-1.5 rounded-lg font-semibold transition-colors shrink-0 ${
                                             att
                                               ? 'bg-emerald-100 text-emerald-800 hover:bg-red-100 hover:text-red-700'
                                               : 'bg-slate-100 text-slate-600 hover:bg-emerald-100 hover:text-emerald-800'
@@ -888,7 +889,7 @@ export default function AdminPage() {
                                         className="py-2.5 flex items-start justify-between gap-2 text-xs"
                                       >
                                         <div className="space-y-0.5">
-                                          <div className="flex items-center gap-1.5">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
                                             <span className="font-bold text-slate-900">
                                               {v.name}
                                             </span>
@@ -946,7 +947,7 @@ export default function AdminPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Card 1: Importar Lista de Membros via Excel */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -954,8 +955,8 @@ export default function AdminPage() {
                     Importar Membros via Excel
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Envie uma planilha (.xlsx, .xls ou .csv) com as colunas <strong>Nome</strong> e{' '}
-                    <strong>Senha</strong> (e opcionalmente Empresa e Telefone).
+                    Envie sua planilha (.xlsx, .xls ou .csv). O sistema extrai automaticamente os{' '}
+                    <strong>3 últimos dígitos do celular</strong> de cada membro para confirmação!
                   </p>
                 </div>
 
@@ -1009,14 +1010,14 @@ export default function AdminPage() {
             </div>
 
             {/* Card 2: Adicionar Membro Individualmente */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Plus className="w-5 h-5 text-bni-red" />
                   Cadastrar Membro Manualmente
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Adicione um membro individualmente com nome e senha de confirmação.
+                  Os 3 últimos dígitos do celular informado serão usados automaticamente na confirmação.
                 </p>
               </div>
 
@@ -1031,47 +1032,52 @@ export default function AdminPage() {
                     value={newMemberName}
                     onChange={(e) => setNewMemberName(e.target.value)}
                     placeholder="Nome completo"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-slate-700">
-                    Senha de Presença *
+                    Celular / WhatsApp *
                   </label>
                   <input
-                    type="text"
-                    required
-                    value={newMemberPassword}
-                    onChange={(e) => setNewMemberPassword(e.target.value)}
-                    placeholder="Ex.: 1234"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                    type="tel"
+                    required={!newMemberPassword}
+                    value={newMemberPhone}
+                    onChange={(e) => setNewMemberPhone(e.target.value)}
+                    placeholder="(48) 99999-9766"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-slate-700">
-                    Empresa (Opcional)
+                    Empresa / Especialidade
                   </label>
                   <input
                     type="text"
                     value={newMemberCompany}
                     onChange={(e) => setNewMemberCompany(e.target.value)}
                     placeholder="Nome da empresa"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-slate-700">
-                    Telefone (Opcional)
+                    3 Últimos Dígitos (Automático)
                   </label>
                   <input
                     type="text"
-                    value={newMemberPhone}
-                    onChange={(e) => setNewMemberPhone(e.target.value)}
-                    placeholder="(11) 99999-9999"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                    maxLength={3}
+                    value={
+                      newMemberPhone.replace(/\D/g, '').length >= 3
+                        ? newMemberPhone.replace(/\D/g, '').slice(-3)
+                        : newMemberPassword
+                    }
+                    onChange={(e) => setNewMemberPassword(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                    placeholder="Automático pelo celular"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-base sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-bni-red"
                   />
                 </div>
 
@@ -1088,34 +1094,34 @@ export default function AdminPage() {
           </div>
 
           {/* Tabela de Membros */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-slate-900">
                 Membros Cadastrados ({members.length})
               </h2>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <input
                   type="text"
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
-                  placeholder="Buscar membro..."
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-bni-red"
+                  placeholder="Buscar membro ou celular..."
+                  className="flex-1 sm:w-56 px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-bni-red"
                 />
 
                 <button
                   onClick={() => setShowPasswords(!showPasswords)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors shrink-0"
                 >
                   {showPasswords ? (
                     <>
                       <EyeOff className="w-3.5 h-3.5" />
-                      Ocultar Senhas
+                      Ocultar Dígitos
                     </>
                   ) : (
                     <>
                       <Eye className="w-3.5 h-3.5" />
-                      Ver Senhas
+                      Ver Dígitos
                     </>
                   )}
                 </button>
@@ -1136,44 +1142,49 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
                       <th className="py-3 px-3">Nome</th>
-                      <th className="py-3 px-3">Senha</th>
+                      <th className="py-3 px-3">3 Últimos Dígitos</th>
+                      <th className="py-3 px-3">Celular</th>
                       <th className="py-3 px-3">Empresa</th>
-                      <th className="py-3 px-3">Telefone</th>
                       <th className="py-3 px-3 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredMembers.map((member) => (
-                      <tr key={member.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-3 font-semibold text-slate-900">
-                          {member.name}
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs text-slate-700">
-                          {showPasswords ? (
-                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-bold">
-                              {member.password}
-                            </span>
-                          ) : (
-                            '••••••'
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 text-xs">
-                          {member.company || '-'}
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 text-xs">
-                          {member.phone || '-'}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <button
-                            onClick={() => handleDeleteMember(member.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                            title="Remover membro"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredMembers.map((member) => {
+                      const phoneDigits = String(member.phone || '').replace(/\D/g, '');
+                      const displayDigits =
+                        phoneDigits.length >= 3 ? phoneDigits.slice(-3) : member.password;
+                      return (
+                        <tr key={member.id} className="hover:bg-slate-50">
+                          <td className="py-3 px-3 font-semibold text-slate-900">
+                            {member.name}
+                          </td>
+                          <td className="py-3 px-3 font-mono text-xs text-slate-700">
+                            {showPasswords ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-bni-lightred text-bni-red border border-red-200 font-extrabold">
+                                {displayDigits}
+                              </span>
+                            ) : (
+                              '•••'
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 text-xs whitespace-nowrap">
+                            {member.phone || '-'}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 text-xs">
+                            {member.company || '-'}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <button
+                              onClick={() => handleDeleteMember(member.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                              title="Remover membro"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

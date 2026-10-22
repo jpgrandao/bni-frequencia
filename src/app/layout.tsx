@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 
@@ -6,6 +6,13 @@ export const metadata: Metadata = {
   title: 'BNI - Sistema de Frequência de Assembleias',
   description:
     'Controle de presença de membros, visitantes e convidados das reuniões e assembleias BNI.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#C8102E',
 };
 
 export default function RootLayout({
@@ -17,7 +24,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased">
         <Navbar />
-        <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8">
           {children}
         </main>
         <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
