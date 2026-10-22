@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   bni-frequencia:
-    image: ghcr.io/jpgraodao/bni-frequencia:latest
+    image: ghcr.io/jpgrandao/bni-frequencia:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
