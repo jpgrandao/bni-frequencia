@@ -3,9 +3,6 @@ version: "3.8"
 services:
   bni-frequencia:
     image: ghcr.io/jpgrandao/bni-frequencia:latest
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
     volumes:
       - bni_data:/app/data
     environment:
@@ -19,7 +16,6 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - bni-frequencia
