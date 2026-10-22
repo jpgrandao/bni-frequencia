@@ -1,62 +1,49 @@
 import { NextResponse } from 'next/server';
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Sistema BNI Frequência';
-    workbook.created = new Date();
+    const workbook = XLSX.utils.book_new();
 
-    const sheet = workbook.addWorksheet('Membros');
-
-    sheet.columns = [
-      { header: 'Nome', key: 'nome', width: 35 },
-      { header: 'Telefone', key: 'telefone', width: 24 },
-      { header: 'Empresa', key: 'empresa', width: 35 },
+    const sampleRows = [
+      {
+        Nome: 'João Silva',
+        Telefone: '(48) 99999-0101',
+        Empresa: 'Silva Consultoria',
+      },
+      {
+        Nome: 'Maria Oliveira',
+        Telefone: '(48) 99999-0202',
+        Empresa: 'Oliveira Arquitetura',
+      },
+      {
+        Nome: 'Pedro Santos',
+        Telefone: '(48) 99999-0303',
+        Empresa: 'Santos Tecnologia',
+      },
     ];
 
-    // Estilizar cabeçalho
-    const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFC8102E' },
-    };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'left' };
-    headerRow.height = 26;
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows);
+    worksheet['!cols'] = [{ wch: 35 }, { wch: 24 }, { wch: 35 }];
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Membros');
 
-    // Linhas de exemplo (os 3 últimos dígitos do telefone serão usados na confirmação)
-    sheet.addRow({
-      nome: 'João Silva',
-      telefone: '(48) 99999-0101',
-      empresa: 'Silva Consultoria',
-    });
-    sheet.addRow({
-      nome: 'Maria Oliveira',
-      telefone: '(48) 99999-0202',
-      empresa: 'Oliveira Arquitetura',
-    });
-    sheet.addRow({
-      nome: 'Pedro Santos',
-      telefone: '(48) 99999-0303',
-      empresa: 'Santos Tecnologia',
-    });
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-    const buffer = await workbook.xlsx.writeBuffer();
-
-    return new NextResponse(buffer, {
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment; filename="modelo_importacao_membros_bni.xlsx"',
+        'Content-Disposition':
+          'attachment; filename="modelo_importacao_membros_bni.xlsx"',
       },
     });
   } catch (error: any) {
     console.error('Erro ao gerar planilha modelo:', error);
     return NextResponse.json(
-      { error: 'Erro ao gerar planilha modelo.' },
+      { error: 'Erro ao gerar modelo de planilha: ' + (error?.message || String(error)) },
       { status: 500 }
     );
   }

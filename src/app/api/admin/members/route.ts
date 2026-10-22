@@ -85,7 +85,8 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, name, password = '', company = '', phone = '', active = 1 } = body;
-    const digits = extractLast3Digits(phone, password);
+    const customDigits = String(password || '').replace(/\D/g, '').slice(-3);
+    const digits = customDigits || extractLast3Digits(phone, password);
 
     if (!id || !name?.trim() || !digits) {
       return NextResponse.json(
@@ -106,7 +107,18 @@ export async function PUT(req: NextRequest) {
       Number(id)
     );
 
-    return NextResponse.json({ success: true, message: 'Membro atualizado com sucesso!' });
+    return NextResponse.json({
+      success: true,
+      message: 'Membro atualizado com sucesso!',
+      member: {
+        id: Number(id),
+        name: name.trim(),
+        password: digits,
+        company: company.trim(),
+        phone: phone.trim(),
+        active: active ? 1 : 0,
+      },
+    });
   } catch (error: any) {
     console.error('Erro ao atualizar membro:', error);
     return NextResponse.json({ error: 'Erro ao atualizar membro.' }, { status: 500 });

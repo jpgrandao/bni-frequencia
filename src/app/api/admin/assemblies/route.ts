@@ -161,6 +161,62 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    // Ação de editar horário de chegada do membro
+    if (body.action === 'update_member_check_in_time') {
+      const { assemblyId, memberId, checkInTime } = body;
+      if (!assemblyId || !memberId || !checkInTime?.trim()) {
+        return NextResponse.json(
+          { error: 'Assembleia, membro e horário de chegada são obrigatórios.' },
+          { status: 400 }
+        );
+      }
+
+      const cleanTime = checkInTime.trim();
+      const existing = db
+        .prepare('SELECT id FROM member_attendances WHERE assembly_id = ? AND member_id = ?')
+        .get(Number(assemblyId), Number(memberId)) as { id: number } | undefined;
+
+      if (existing) {
+        db.prepare('UPDATE member_attendances SET check_in_time = ? WHERE id = ?').run(
+          cleanTime,
+          existing.id
+        );
+      } else {
+        db.prepare(
+          'INSERT INTO member_attendances (assembly_id, member_id, check_in_time) VALUES (?, ?, ?)'
+        ).run(Number(assemblyId), Number(memberId), cleanTime);
+      }
+
+      return NextResponse.json({
+        success: true,
+        checkInTime: cleanTime,
+        message: 'Horário de chegada do membro atualizado com sucesso!',
+      });
+    }
+
+    // Ação de editar horário de chegada do visitante/convidado
+    if (body.action === 'update_visitor_check_in_time') {
+      const { attendanceId, checkInTime } = body;
+      if (!attendanceId || !checkInTime?.trim()) {
+        return NextResponse.json(
+          { error: 'ID da presença e horário de chegada são obrigatórios.' },
+          { status: 400 }
+        );
+      }
+
+      const cleanTime = checkInTime.trim();
+      db.prepare('UPDATE visitor_attendances SET check_in_time = ? WHERE id = ?').run(
+        cleanTime,
+        Number(attendanceId)
+      );
+
+      return NextResponse.json({
+        success: true,
+        checkInTime: cleanTime,
+        message: 'Horário de chegada do visitante/convidado atualizado com sucesso!',
+      });
+    }
+
     const { id, status, meeting_number, location, meeting_date } = body;
     if (!id) {
       return NextResponse.json({ error: 'ID da assembleia é obrigatório.' }, { status: 400 });

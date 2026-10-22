@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,14 @@ export async function GET(
   try {
     const { id } = await context.params;
     const assemblyId = Number(id);
+
+    if (!assemblyId || isNaN(assemblyId)) {
+      return NextResponse.json(
+        { error: 'ID da assembleia inválido.' },
+        { status: 400 }
+      );
+    }
+
     const db = getDb();
 
     const assembly = db
@@ -59,150 +67,116 @@ export async function GET(
       attendanceByMemberId.set(ma.member_id, ma.check_in_time);
     }
 
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'BNI Controle de Frequência';
-    workbook.created = new Date();
+    const workbook = XLSX.utils.book_new();
 
     // =========================================================================
     // ABA 1: Dados Geral
     // =========================================================================
-    const sheetGeral = workbook.addWorksheet('Dados Geral');
-    sheetGeral.columns = [
-      { header: 'Campo', key: 'campo', width: 32 },
-      { header: 'Informação', key: 'valor', width: 45 },
-    ];
-
-    const headerGeral = sheetGeral.getRow(1);
-    headerGeral.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-    headerGeral.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFC8102E' },
-    };
-    headerGeral.height = 26;
-    headerGeral.alignment = { vertical: 'middle' };
-
     const visitantesCount = visitorAttendances.filter((v) => v.type === 'visitante').length;
     const convidadosCount = visitorAttendances.filter((v) => v.type === 'convidado').length;
 
     const rowsGeral = [
-      { campo: 'Número da Reunião', valor: String(assembly.meeting_number) },
-      { campo: 'Local', valor: assembly.location },
-      { campo: 'Data', valor: formatPtBrDate(assembly.meeting_date) },
+      { Campo: 'Número da Reunião', Informação: String(assembly.meeting_number) },
+      { Campo: 'Local', Informação: assembly.location },
+      { Campo: 'Data', Informação: formatPtBrDate(assembly.meeting_date) },
       {
-        campo: 'Status da Assembleia',
-        valor: assembly.status === 'open' ? 'Aberta' : 'Fechada',
+        Campo: 'Status da Assembleia',
+        Informação: assembly.status === 'open' ? 'Aberta' : 'Fechada',
       },
-      { campo: 'Total de Membros Presentes', valor: String(memberAttendances.length) },
+      { Campo: 'Total de Membros Presentes', Informação: String(memberAttendances.length) },
       {
-        campo: 'Total de Membros Ausentes',
-        valor: String(Math.max(0, allMembers.length - memberAttendances.length)),
+        Campo: 'Total de Membros Ausentes',
+        Informação: String(Math.max(0, allMembers.length - memberAttendances.length)),
       },
-      { campo: 'Total de Visitantes (Outros Grupos BNI)', valor: String(visitantesCount) },
-      { campo: 'Total de Convidados', valor: String(convidadosCount) },
+      { Campo: 'Total de Visitantes (Outros Grupos BNI)', Informação: String(visitantesCount) },
+      { Campo: 'Total de Convidados', Informação: String(convidadosCount) },
       {
-        campo: 'Total Geral de Participantes na Reunião',
-        valor: String(memberAttendances.length + visitorAttendances.length),
+        Campo: 'Total Geral de Participantes na Reunião',
+        Informação: String(memberAttendances.length + visitorAttendances.length),
       },
     ];
 
-    rowsGeral.forEach((r) => {
-      const row = sheetGeral.addRow(r);
-      row.getCell(1).font = { bold: true };
-      row.height = 22;
-      row.alignment = { vertical: 'middle' };
-    });
+    const sheetGeral = XLSX.utils.json_to_sheet(rowsGeral);
+    sheetGeral['!cols'] = [{ wch: 35 }, { wch: 45 }];
+    XLSX.utils.book_append_sheet(workbook, sheetGeral, 'Dados Geral');
 
     // =========================================================================
     // ABA 2: Membros
     // =========================================================================
-    const sheetMembros = workbook.addWorksheet('Membros');
-    sheetMembros.columns = [
-      { header: 'Nome', key: 'nome', width: 38 },
-      { header: 'Hora de Entrada', key: 'hora', width: 20 },
-      { header: 'Status', key: 'status', width: 18 },
-      { header: 'Empresa', key: 'empresa', width: 30 },
-    ];
-
-    const headerMembros = sheetMembros.getRow(1);
-    headerMembros.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-    headerMembros.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFC8102E' },
-    };
-    headerMembros.height = 26;
-    headerMembros.alignment = { vertical: 'middle' };
-
-    // Primeiro lista os presentes por ordem de chegada ou todos os membros
-    // Vamos listar todos os membros cadastrados (Presentes primeiro, depois Ausentes)
-    // E caso algum membro tenha registrado presença, exibe sua Hora de Entrada exata
     const presentMembers = allMembers.filter((m) => attendanceByMemberId.has(m.id));
     const absentMembers = allMembers.filter((m) => !attendanceByMemberId.has(m.id));
 
+    const rowsMembros: Array<{
+      Nome: string;
+      'Hora de Entrada': string;
+      Status: string;
+      Empresa: string;
+    }> = [];
+
     for (const m of presentMembers) {
-      const row = sheetMembros.addRow({
-        nome: m.name,
-        hora: attendanceByMemberId.get(m.id) || '',
-        status: 'Presente',
-        empresa: m.company || '',
+      rowsMembros.push({
+        Nome: m.name,
+        'Hora de Entrada': attendanceByMemberId.get(m.id) || '',
+        Status: 'Presente',
+        Empresa: m.company || '',
       });
-      row.height = 20;
-      row.getCell(3).font = { bold: true, color: { argb: 'FF15803D' } };
     }
 
     for (const m of absentMembers) {
-      const row = sheetMembros.addRow({
-        nome: m.name,
-        hora: '-',
-        status: 'Ausente',
-        empresa: m.company || '',
+      rowsMembros.push({
+        Nome: m.name,
+        'Hora de Entrada': '-',
+        Status: 'Ausente',
+        Empresa: m.company || '',
       });
-      row.height = 20;
-      row.getCell(3).font = { color: { argb: 'FFB91C1C' } };
     }
+
+    const sheetMembros = XLSX.utils.json_to_sheet(rowsMembros);
+    sheetMembros['!cols'] = [{ wch: 38 }, { wch: 20 }, { wch: 18 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(workbook, sheetMembros, 'Membros');
 
     // =========================================================================
     // ABA 3: Visitantes e Convidados
     // =========================================================================
-    const sheetVisitantes = workbook.addWorksheet('Visitantes e Convidados');
-    sheetVisitantes.columns = [
-      { header: 'Nome', key: 'nome', width: 35 },
-      { header: 'Empresa', key: 'empresa', width: 32 },
-      { header: 'Contato', key: 'contato', width: 22 },
-      { header: 'Grupo BNI', key: 'grupo_bni', width: 28 },
-      { header: 'Categoria', key: 'tipo', width: 18 },
-      { header: 'Hora de Entrada', key: 'hora', width: 18 },
+    const rowsVisitantes = visitorAttendances.map((v) => ({
+      Nome: v.name,
+      Empresa: v.company || '',
+      Contato: v.phone || '',
+      'Grupo BNI': v.type === 'visitante' ? v.bni_group : 'Não se aplica (Convidado)',
+      Categoria: v.type === 'visitante' ? 'Visitante BNI' : 'Convidado',
+      'Hora de Entrada': v.check_in_time,
+    }));
+
+    const sheetVisitantes = XLSX.utils.json_to_sheet(
+      rowsVisitantes.length > 0
+        ? rowsVisitantes
+        : [
+            {
+              Nome: '',
+              Empresa: '',
+              Contato: '',
+              'Grupo BNI': '',
+              Categoria: '',
+              'Hora de Entrada': '',
+            },
+          ]
+    );
+    sheetVisitantes['!cols'] = [
+      { wch: 35 },
+      { wch: 32 },
+      { wch: 22 },
+      { wch: 28 },
+      { wch: 18 },
+      { wch: 18 },
     ];
+    XLSX.utils.book_append_sheet(workbook, sheetVisitantes, 'Visitantes e Convidados');
 
-    const headerVisitantes = sheetVisitantes.getRow(1);
-    headerVisitantes.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-    headerVisitantes.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFC8102E' },
-    };
-    headerVisitantes.height = 26;
-    headerVisitantes.alignment = { vertical: 'middle' };
-
-    for (const v of visitorAttendances) {
-      const row = sheetVisitantes.addRow({
-        nome: v.name,
-        empresa: v.company,
-        contato: v.phone,
-        grupo_bni: v.type === 'visitante' ? v.bni_group : 'Não se aplica (Convidado)',
-        tipo: v.type === 'visitante' ? 'Visitante BNI' : 'Convidado',
-        hora: v.check_in_time,
-      });
-      row.height = 20;
-    }
-
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     const safeNumber = String(assembly.meeting_number).replace(/[^a-zA-Z0-9_-]/g, '');
     const safeDate = String(assembly.meeting_date).replace(/[^0-9-]/g, '');
     const filename = `assembleia_bni_${safeNumber || assembly.id}_${safeDate}.xlsx`;
 
-    return new NextResponse(buffer, {
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type':
@@ -213,7 +187,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Erro ao exportar planilha da assembleia:', error);
     return NextResponse.json(
-      { error: 'Erro ao gerar planilha Excel da assembleia.' },
+      { error: 'Erro ao gerar planilha Excel da assembleia: ' + (error?.message || String(error)) },
       { status: 500 }
     );
   }
