@@ -258,7 +258,7 @@ export default function PresencaMembroPage() {
           </span>
           <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1.5 flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-bni-red shrink-0" />
-            Presença do Membro
+            Presença de Membro / Substituto
           </h1>
         </div>
         <div className="flex sm:flex-col flex-wrap items-center sm:items-end gap-3 sm:gap-1 text-xs text-slate-600">

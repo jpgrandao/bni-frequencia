@@ -9,7 +9,12 @@ export default function Navbar() {
 
   const navItems = [
     { href: '/', label: 'Início', shortLabel: 'Início', icon: Home },
-    { href: '/presenca-membro', label: 'Presença Membro', shortLabel: 'Membro', icon: UserCheck },
+    {
+      href: '/presenca-membro',
+      label: 'Membro / Substituto',
+      shortLabel: 'Membro/Sub.',
+      icon: UserCheck,
+    },
     {
       href: '/presenca-visitante',
       label: 'Visitante / Convidado',
@@ -32,7 +37,7 @@ export default function Navbar() {
                 Controle de Frequência
               </span>
               <span className="text-[11px] sm:text-xs text-red-100 block mt-0.5">
-                Membros, Visitantes e Convidados
+                Membros, Substitutos, Visitantes e Convidados
               </span>
             </div>
           </Link>

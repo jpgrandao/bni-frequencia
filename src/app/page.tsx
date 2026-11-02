@@ -132,7 +132,7 @@ export default function HomePage() {
                 href="/presenca-membro"
                 className="px-5 py-3 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl text-sm shadow-sm transition-colors text-center"
               >
-                Sou Membro
+                Sou Membro / Substituto
               </Link>
               <Link
                 href="/presenca-visitante"
@@ -211,18 +211,18 @@ export default function HomePage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* QR Code 1: Membros */}
+          {/* QR Code 1: Membros / Substitutos */}
           <div className="rounded-2xl border-2 border-red-100 bg-gradient-to-b from-red-50/40 to-white p-5 sm:p-6 flex flex-col items-center text-center space-y-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-bni-lightred text-bni-red text-xs font-extrabold uppercase tracking-wider">
               <UserCheck className="w-4 h-4" />
-              QR Code • Membros
+              QR Code • Membro / Substituto
             </div>
 
             <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
               {memberQrDataUrl ? (
                 <img
                   src={memberQrDataUrl}
-                  alt="QR Code Presença do Membro"
+                  alt="QR Code Presença de Membro ou Substituto"
                   className="w-48 h-48 sm:w-56 sm:h-56 object-contain"
                 />
               ) : (
@@ -232,11 +232,10 @@ export default function HomePage() {
 
             <div className="space-y-1 max-w-sm">
               <h3 className="text-lg font-extrabold text-slate-900">
-                Presença do Membro
+                Presença de Membro / Substituto
               </h3>
               <p className="text-xs sm:text-sm text-slate-600">
-                Escaneie para selecionar seu nome e confirmar presença com os{' '}
-                <strong>3 últimos dígitos do seu celular</strong>.
+                Escaneie para selecionar o membro e confirmar presença pelo celular (próprio membro ou como substituto).
               </p>
               <p className="text-[11px] font-mono text-slate-400 pt-1 break-all">
                 {cleanBase}/presenca-membro
@@ -248,7 +247,7 @@ export default function HomePage() {
               className="w-full py-3 px-4 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
             >
               <Smartphone className="w-4 h-4" />
-              Acessar Presença do Membro
+              Acessar Presença (Membro / Substituto)
             </Link>
           </div>
 
@@ -296,7 +295,7 @@ export default function HomePage() {
 
       {/* Cards de Acesso Rápido */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
-        {/* Card 1: Membro */}
+        {/* Card 1: Membro / Substituto */}
         <Link
           href="/presenca-membro"
           className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:border-bni-red transition-all flex flex-col justify-between"
@@ -306,14 +305,14 @@ export default function HomePage() {
               <UserCheck className="w-6 h-6" />
             </div>
             <h2 className="text-lg font-bold text-slate-900 group-hover:text-bni-red transition-colors">
-              Presença do Membro
+              Presença de Membro / Substituto
             </h2>
             <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
-              Escolha o seu nome na lista de membros e confirme sua presença com os 3 últimos dígitos do seu celular.
+              Escolha o nome na lista de membros e confirme a presença do próprio membro ou como seu substituto.
             </p>
           </div>
           <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-bni-red">
-            <span>Confirmar presença de membro</span>
+            <span>Confirmar presença de membro / substituto</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </div>
         </Link>
