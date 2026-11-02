@@ -7,6 +7,7 @@ import {
   Building2,
   Phone,
   User,
+  UserCheck,
   Globe,
   CheckCircle2,
   AlertCircle,
@@ -21,6 +22,12 @@ interface ActiveAssembly {
   location: string;
   meeting_date: string;
   status: 'open' | 'closed';
+}
+
+interface MemberOption {
+  id: number;
+  name: string;
+  company: string;
 }
 
 function formatPtBrDate(isoDate: string): string {
@@ -43,6 +50,7 @@ function formatPhone(value: string): string {
 
 export default function PresencaVisitantePage() {
   const [assembly, setAssembly] = useState<ActiveAssembly | null>(null);
+  const [members, setMembers] = useState<MemberOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState('');
@@ -51,6 +59,10 @@ export default function PresencaVisitantePage() {
   const [isVisitor, setIsVisitor] = useState(false);
   const [bniGroup, setBniGroup] = useState('');
 
+  // Convidado por
+  const [invitedByOption, setInvitedByOption] = useState('');
+  const [customInvitedBy, setCustomInvitedBy] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -58,6 +70,7 @@ export default function PresencaVisitantePage() {
     name: string;
     type: 'convidado' | 'visitante';
     bniGroup: string;
+    invitedBy: string;
     checkInTime: string;
     message: string;
   } | null>(null);
@@ -68,6 +81,7 @@ export default function PresencaVisitantePage() {
       const res = await fetch('/api/public/active-assembly');
       const data = await res.json();
       setAssembly(data.assembly || null);
+      setMembers(data.members || []);
     } catch {
       setErrorMsg('Erro ao carregar dados da assembleia.');
     } finally {
@@ -93,6 +107,16 @@ export default function PresencaVisitantePage() {
       return;
     }
 
+    const finalInvitedBy =
+      invitedByOption === '__outro__'
+        ? customInvitedBy.trim()
+        : invitedByOption.trim();
+
+    if (!finalInvitedBy) {
+      setErrorMsg('Por favor, selecione quem o convidou ou digite o nome escolhendo a opção "Outro".');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/attendance/visitor', {
@@ -104,6 +128,7 @@ export default function PresencaVisitantePage() {
           phone: phone.trim(),
           type: isVisitor ? 'visitante' : 'convidado',
           bniGroup: isVisitor ? bniGroup.trim() : '',
+          invitedBy: finalInvitedBy,
         }),
       });
       const data = await res.json();
@@ -117,6 +142,7 @@ export default function PresencaVisitantePage() {
         name: data.name,
         type: data.type,
         bniGroup: data.bniGroup,
+        invitedBy: data.invitedBy || finalInvitedBy,
         checkInTime: data.checkInTime,
         message: data.message,
       });
@@ -134,6 +160,8 @@ export default function PresencaVisitantePage() {
     setPhone('');
     setIsVisitor(false);
     setBniGroup('');
+    setInvitedByOption('');
+    setCustomInvitedBy('');
     setErrorMsg('');
   };
 
@@ -218,6 +246,12 @@ export default function PresencaVisitantePage() {
             <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
               Bem-vindo(a), {confirmation.name}!
             </h2>
+            {confirmation.invitedBy && (
+              <p className="text-sm font-semibold text-slate-700">
+                Convidado(a) por:{' '}
+                <strong className="text-bni-red">{confirmation.invitedBy}</strong>
+              </p>
+            )}
             <p className="text-slate-600 text-sm">{confirmation.message}</p>
           </div>
 
@@ -299,6 +333,60 @@ export default function PresencaVisitantePage() {
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red focus:border-bni-red"
               />
             </div>
+          </div>
+
+          {/* Campo 4: Membro que o convidou */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            <label htmlFor="invited-by-select" className="block text-sm font-bold text-slate-800">
+              Membro que o convidou *
+            </label>
+            <div className="relative">
+              <UserCheck className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                id="invited-by-select"
+                required
+                value={invitedByOption}
+                onChange={(e) => {
+                  setInvitedByOption(e.target.value);
+                  if (e.target.value !== '__outro__') {
+                    setCustomInvitedBy('');
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-bni-red focus:border-bni-red cursor-pointer"
+              >
+                <option value="">Selecione o membro que te convidou...</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.name}>
+                    {m.name} {m.company ? `(${m.company})` : ''}
+                  </option>
+                ))}
+                <option value="__outro__">➕ Outro (escrever nome)</option>
+              </select>
+            </div>
+
+            {/* Campo extra para quando escolher "Outro" */}
+            {invitedByOption === '__outro__' && (
+              <div className="pt-2 pl-3 border-l-2 border-bni-red space-y-1.5">
+                <label htmlFor="custom-invited-by" className="block text-xs font-bold text-slate-700">
+                  Nome de quem te convidou *
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="custom-invited-by"
+                    type="text"
+                    required
+                    value={customInvitedBy}
+                    onChange={(e) => setCustomInvitedBy(e.target.value)}
+                    placeholder="Digite o nome completo de quem te convidou"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red focus:border-bni-red"
+                  />
+                </div>
+              </div>
+            )}
+            <p className="text-[11px] text-slate-500">
+              Selecione na lista ou clique em &ldquo;Outro&rdquo; caso o nome de quem te convidou não esteja cadastrado.
+            </p>
           </div>
 
           {/* Seleção: Convidado ou Visitante de outro grupo BNI */}

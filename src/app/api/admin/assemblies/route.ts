@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
       const memberAttendances = db
         .prepare(
-          `SELECT ma.id, ma.assembly_id, ma.member_id, ma.check_in_time, m.name as member_name, m.company as member_company
+          `SELECT ma.id, ma.assembly_id, ma.member_id, ma.check_in_time, ma.is_substitute, ma.substitute_name, m.name as member_name, m.company as member_company
            FROM member_attendances ma
            JOIN members m ON m.id = ma.member_id
            WHERE ma.assembly_id = ?

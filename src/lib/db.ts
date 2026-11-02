@@ -34,6 +34,8 @@ export interface MemberAttendance {
   member_name?: string;
   member_company?: string;
   check_in_time: string;
+  is_substitute?: number;
+  substitute_name?: string;
 }
 
 export interface VisitorAttendance {
@@ -44,6 +46,7 @@ export interface VisitorAttendance {
   phone: string;
   type: 'convidado' | 'visitante';
   bni_group: string;
+  invited_by?: string;
   check_in_time: string;
 }
 
@@ -120,6 +123,8 @@ export function getDb() {
       assembly_id INTEGER NOT NULL,
       member_id INTEGER NOT NULL,
       check_in_time TEXT NOT NULL,
+      is_substitute INTEGER DEFAULT 0,
+      substitute_name TEXT DEFAULT '',
       UNIQUE(assembly_id, member_id),
       FOREIGN KEY (assembly_id) REFERENCES assemblies(id) ON DELETE CASCADE,
       FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
@@ -133,10 +138,22 @@ export function getDb() {
       phone TEXT NOT NULL,
       type TEXT NOT NULL,
       bni_group TEXT DEFAULT '',
+      invited_by TEXT DEFAULT '',
       check_in_time TEXT NOT NULL,
       FOREIGN KEY (assembly_id) REFERENCES assemblies(id) ON DELETE CASCADE
     );
   `);
+
+  // Migração suave para colunas de substituto e convidado por em bancos já existentes
+  try {
+    db.exec('ALTER TABLE member_attendances ADD COLUMN is_substitute INTEGER DEFAULT 0;');
+  } catch (_) {}
+  try {
+    db.exec("ALTER TABLE member_attendances ADD COLUMN substitute_name TEXT DEFAULT '';");
+  } catch (_) {}
+  try {
+    db.exec("ALTER TABLE visitor_attendances ADD COLUMN invited_by TEXT DEFAULT '';");
+  } catch (_) {}
 
   // Configurar senha padrão do administrador caso não exista
   const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin123';

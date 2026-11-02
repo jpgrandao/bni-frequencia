@@ -57,6 +57,8 @@ interface DetailedAttendance {
     member_name: string;
     member_company: string;
     check_in_time: string;
+    is_substitute?: number;
+    substitute_name?: string;
   }[];
   visitorAttendances: {
     id: number;
@@ -65,6 +67,7 @@ interface DetailedAttendance {
     phone: string;
     type: 'convidado' | 'visitante';
     bni_group: string;
+    invited_by?: string;
     check_in_time: string;
   }[];
   allMembers: MemberRow[];
@@ -999,10 +1002,15 @@ export default function AdminPage() {
                                             {m.name}
                                           </span>
                                           {att ? (
-                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                               <span className="text-emerald-700 font-medium">
                                                 Entrada às {att.check_in_time}
                                               </span>
+                                              {att.is_substitute ? (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                                  Substituto: {att.substitute_name}
+                                                </span>
+                                              ) : null}
                                               <button
                                                 type="button"
                                                 onClick={() =>
@@ -1010,7 +1018,9 @@ export default function AdminPage() {
                                                     type: 'member',
                                                     assemblyId: a.id,
                                                     memberId: m.id,
-                                                    name: m.name,
+                                                    name: att.is_substitute
+                                                      ? `${m.name} (Substituto: ${att.substitute_name})`
+                                                      : m.name,
                                                     currentTime: att.check_in_time,
                                                   })
                                                 }
@@ -1082,6 +1092,12 @@ export default function AdminPage() {
                                           <div className="text-slate-600">
                                             {v.company} • {v.phone}
                                           </div>
+                                          {v.invited_by ? (
+                                            <div className="text-slate-500 text-[11px]">
+                                              Convidado por:{' '}
+                                              <strong className="text-slate-800">{v.invited_by}</strong>
+                                            </div>
+                                          ) : null}
                                           <div className="text-slate-400 flex items-center gap-1.5">
                                             <span>Entrada às {v.check_in_time}</span>
                                             <button

@@ -4,7 +4,7 @@ import { getDb, formatTimeNow } from '@/lib/db';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, company, phone, type, bniGroup } = body;
+    const { name, company, phone, type, bniGroup, invitedBy } = body;
 
     if (!name?.trim() || !company?.trim() || !phone?.trim()) {
       return NextResponse.json(
@@ -22,12 +22,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanInvitedBy = String(invitedBy || '').trim();
+
     const db = getDb();
 
     // Verifica se há assembleia aberta
     const activeAssembly = db
       .prepare("SELECT * FROM assemblies WHERE status = 'open' ORDER BY id DESC LIMIT 1")
-      .get();
+      .get() as any;
 
     if (!activeAssembly) {
       return NextResponse.json(
@@ -41,8 +43,8 @@ export async function POST(req: NextRequest) {
 
     db.prepare(
       `INSERT INTO visitor_attendances 
-        (assembly_id, name, company, phone, type, bni_group, check_in_time) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+        (assembly_id, name, company, phone, type, bni_group, invited_by, check_in_time) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       activeAssembly.id,
       name.trim(),
@@ -50,6 +52,7 @@ export async function POST(req: NextRequest) {
       phone.trim(),
       normalizedType,
       cleanGroup,
+      cleanInvitedBy,
       checkInTime
     );
 
@@ -58,6 +61,7 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       type: normalizedType,
       bniGroup: cleanGroup,
+      invitedBy: cleanInvitedBy,
       checkInTime,
       assembly: activeAssembly,
       message: 'Presença registrada com sucesso! Seja muito bem-vindo(a)!',

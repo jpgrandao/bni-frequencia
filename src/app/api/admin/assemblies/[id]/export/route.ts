@@ -62,9 +62,9 @@ export async function GET(
       )
       .all(assemblyId) as any[];
 
-    const attendanceByMemberId = new Map<number, string>();
+    const attendanceByMemberId = new Map<number, any>();
     for (const ma of memberAttendances) {
-      attendanceByMemberId.set(ma.member_id, ma.check_in_time);
+      attendanceByMemberId.set(ma.member_id, ma);
     }
 
     const workbook = XLSX.utils.book_new();
@@ -74,6 +74,8 @@ export async function GET(
     // =========================================================================
     const visitantesCount = visitorAttendances.filter((v) => v.type === 'visitante').length;
     const convidadosCount = visitorAttendances.filter((v) => v.type === 'convidado').length;
+    const substitutosCount = memberAttendances.filter((ma) => ma.is_substitute).length;
+    const membrosPropriosCount = memberAttendances.length - substitutosCount;
 
     const rowsGeral = [
       { Campo: 'Número da Reunião', Informação: String(assembly.meeting_number) },
@@ -83,7 +85,9 @@ export async function GET(
         Campo: 'Status da Assembleia',
         Informação: assembly.status === 'open' ? 'Aberta' : 'Fechada',
       },
-      { Campo: 'Total de Membros Presentes', Informação: String(memberAttendances.length) },
+      { Campo: 'Total de Membros Presentes (Próprio Membro)', Informação: String(membrosPropriosCount) },
+      { Campo: 'Total de Membros com Substituto', Informação: String(substitutosCount) },
+      { Campo: 'Total Geral de Presenças de Membros', Informação: String(memberAttendances.length) },
       {
         Campo: 'Total de Membros Ausentes',
         Informação: String(Math.max(0, allMembers.length - memberAttendances.length)),
@@ -97,7 +101,7 @@ export async function GET(
     ];
 
     const sheetGeral = XLSX.utils.json_to_sheet(rowsGeral);
-    sheetGeral['!cols'] = [{ wch: 35 }, { wch: 45 }];
+    sheetGeral['!cols'] = [{ wch: 45 }, { wch: 45 }];
     XLSX.utils.book_append_sheet(workbook, sheetGeral, 'Dados Geral');
 
     // =========================================================================
@@ -108,16 +112,19 @@ export async function GET(
 
     const rowsMembros: Array<{
       Nome: string;
-      'Hora de Entrada': string;
       Status: string;
+      'Substituto (se houver)': string;
+      'Hora de Entrada': string;
       Empresa: string;
     }> = [];
 
     for (const m of presentMembers) {
+      const att = attendanceByMemberId.get(m.id);
       rowsMembros.push({
         Nome: m.name,
-        'Hora de Entrada': attendanceByMemberId.get(m.id) || '',
-        Status: 'Presente',
+        Status: att?.is_substitute ? 'Substituto' : 'Presente',
+        'Substituto (se houver)': att?.is_substitute ? (att.substitute_name || '') : '-',
+        'Hora de Entrada': att?.check_in_time || '',
         Empresa: m.company || '',
       });
     }
@@ -125,14 +132,15 @@ export async function GET(
     for (const m of absentMembers) {
       rowsMembros.push({
         Nome: m.name,
-        'Hora de Entrada': '-',
         Status: 'Ausente',
+        'Substituto (se houver)': '-',
+        'Hora de Entrada': '-',
         Empresa: m.company || '',
       });
     }
 
     const sheetMembros = XLSX.utils.json_to_sheet(rowsMembros);
-    sheetMembros['!cols'] = [{ wch: 38 }, { wch: 20 }, { wch: 18 }, { wch: 30 }];
+    sheetMembros['!cols'] = [{ wch: 38 }, { wch: 18 }, { wch: 32 }, { wch: 20 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(workbook, sheetMembros, 'Membros');
 
     // =========================================================================
@@ -142,6 +150,7 @@ export async function GET(
       Nome: v.name,
       Empresa: v.company || '',
       Contato: v.phone || '',
+      'Convidado por': v.invited_by || '-',
       'Grupo BNI': v.type === 'visitante' ? v.bni_group : 'Não se aplica (Convidado)',
       Categoria: v.type === 'visitante' ? 'Visitante BNI' : 'Convidado',
       'Hora de Entrada': v.check_in_time,
@@ -155,6 +164,7 @@ export async function GET(
               Nome: '',
               Empresa: '',
               Contato: '',
+              'Convidado por': '',
               'Grupo BNI': '',
               Categoria: '',
               'Hora de Entrada': '',
@@ -165,6 +175,7 @@ export async function GET(
       { wch: 35 },
       { wch: 32 },
       { wch: 22 },
+      { wch: 30 },
       { wch: 28 },
       { wch: 18 },
       { wch: 18 },
