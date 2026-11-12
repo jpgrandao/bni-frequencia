@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, formatTimeNow, extractLast3Digits } from '@/lib/db';
+import { checkRateLimit, getClientIp, resetRateLimit } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rateKey = `attendance-member:${ip}`;
+    const rate = checkRateLimit(rateKey, 12, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: `Muitas tentativas incorretas. Aguarde ${rate.retryAfterSec} segundos antes de tentar novamente.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const {
       memberId,
@@ -10,6 +23,7 @@ export async function POST(req: NextRequest) {
       isSubstitute = false,
       substituteName = '',
       checkInTime: customCheckInTime,
+      token = '',
     } = body;
 
     if (!memberId) {
@@ -49,6 +63,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (
+      activeAssembly.access_token &&
+      String(token || '').trim() !== String(activeAssembly.access_token).trim()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Código da reunião inválido ou expirado. Escaneie o QR Code oficial da assembleia aberta.',
+        },
+        { status: 403 }
+      );
+    }
+
     // Busca o membro
     const member = db
       .prepare('SELECT * FROM members WHERE id = ? AND active = 1')
@@ -81,6 +108,7 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       }
+      resetRateLimit(rateKey);
     }
 
     // Determina o horário de chegada

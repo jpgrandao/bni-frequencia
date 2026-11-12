@@ -22,6 +22,7 @@ interface ActiveAssembly {
   location: string;
   meeting_date: string;
   status: 'open' | 'closed';
+  access_token?: string;
 }
 
 function formatPtBrDate(isoDate: string): string {
@@ -45,9 +46,14 @@ export default function HomePage() {
     fetch('/api/public/active-assembly')
       .then((res) => res.json())
       .then((data) => {
-        setAssembly(data.assembly || null);
+        const active = data.assembly || null;
+        setAssembly(active);
 
         if (typeof window !== 'undefined') {
+          if (active?.access_token) {
+            sessionStorage.setItem('bni_assembly_token', active.access_token);
+          }
+
           const currentOrigin = window.location.origin;
           const isLocalhost =
             window.location.hostname === 'localhost' ||
@@ -69,11 +75,19 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const tokenQuery = assembly?.access_token ? `?t=${encodeURIComponent(assembly.access_token)}` : '';
+  const memberPath = `/presenca-membro${tokenQuery}`;
+  const visitorPath = `/presenca-visitante${tokenQuery}`;
+
   useEffect(() => {
-    if (!baseUrl) return;
+    if (!baseUrl || !assembly) {
+      setMemberQrDataUrl('');
+      setVisitorQrDataUrl('');
+      return;
+    }
     const cleanBase = baseUrl.replace(/\/$/, '');
-    const memberUrl = `${cleanBase}/presenca-membro`;
-    const visitorUrl = `${cleanBase}/presenca-visitante`;
+    const memberUrl = `${cleanBase}${memberPath}`;
+    const visitorUrl = `${cleanBase}${visitorPath}`;
 
     QRCode.toDataURL(memberUrl, {
       width: 280,
@@ -90,7 +104,7 @@ export default function HomePage() {
     })
       .then(setVisitorQrDataUrl)
       .catch(() => {});
-  }, [baseUrl]);
+  }, [baseUrl, assembly, memberPath, visitorPath]);
 
   const cleanBase = baseUrl.replace(/\/$/, '');
 
@@ -129,13 +143,13 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:flex items-center gap-2.5 w-full md:w-auto">
               <Link
-                href="/presenca-membro"
+                href={memberPath}
                 className="px-5 py-3 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl text-sm shadow-sm transition-colors text-center"
               >
                 Sou Membro / Substituto
               </Link>
               <Link
-                href="/presenca-visitante"
+                href={visitorPath}
                 className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm shadow-sm transition-colors text-center"
               >
                 Sou Visitante / Convidado
@@ -210,94 +224,119 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* QR Code 1: Membros / Substitutos */}
-          <div className="rounded-2xl border-2 border-red-100 bg-gradient-to-b from-red-50/40 to-white p-5 sm:p-6 flex flex-col items-center text-center space-y-4">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-bni-lightred text-bni-red text-xs font-extrabold uppercase tracking-wider">
-              <UserCheck className="w-4 h-4" />
-              QR Code • Membro / Substituto
-            </div>
-
-            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
-              {memberQrDataUrl ? (
-                <img
-                  src={memberQrDataUrl}
-                  alt="QR Code Presença de Membro ou Substituto"
-                  className="w-48 h-48 sm:w-56 sm:h-56 object-contain"
-                />
-              ) : (
-                <div className="w-48 h-48 sm:w-56 sm:h-56 bg-slate-100 animate-pulse rounded-xl" />
-              )}
-            </div>
-
-            <div className="space-y-1 max-w-sm">
-              <h3 className="text-lg font-extrabold text-slate-900">
-                Presença de Membro / Substituto
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600">
-                Escaneie para selecionar o membro e confirmar presença pelo celular (próprio membro ou como substituto).
-              </p>
-              <p className="text-[11px] font-mono text-slate-400 pt-1 break-all">
-                {cleanBase}/presenca-membro
-              </p>
-            </div>
-
-            <Link
-              href="/presenca-membro"
-              className="w-full py-3 px-4 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
-            >
-              <Smartphone className="w-4 h-4" />
-              Acessar Presença (Membro / Substituto)
-            </Link>
+        {!assembly ? (
+          <div className="p-8 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 text-center space-y-2">
+            <p className="text-sm font-bold text-slate-700">
+              Os QR Codes com código único são gerados automaticamente assim que uma assembleia é aberta.
+            </p>
+            <p className="text-xs text-slate-500">
+              Por segurança, os links de check-in e a busca de membros permanecem desativados quando não há reunião aberta.
+            </p>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* QR Code 1: Membros / Substitutos */}
+            <div className="rounded-2xl border-2 border-red-100 bg-gradient-to-b from-red-50/40 to-white p-5 sm:p-6 flex flex-col items-center text-center space-y-4">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-bni-lightred text-bni-red text-xs font-extrabold uppercase tracking-wider">
+                <UserCheck className="w-4 h-4" />
+                QR Code • Membro / Substituto
+              </div>
 
-          {/* QR Code 2: Visitantes e Convidados */}
-          <div className="rounded-2xl border-2 border-blue-100 bg-gradient-to-b from-blue-50/40 to-white p-5 sm:p-6 flex flex-col items-center text-center space-y-4">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-extrabold uppercase tracking-wider">
-              <Users className="w-4 h-4" />
-              QR Code • Visitante / Convidado
+              <Link
+                href={memberPath}
+                title="Clique para abrir a página de presença de Membro / Substituto"
+                className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 hover:border-bni-red hover:shadow-md transition-all group cursor-pointer"
+              >
+                {memberQrDataUrl ? (
+                  <img
+                    src={memberQrDataUrl}
+                    alt="QR Code Presença de Membro ou Substituto"
+                    className="w-48 h-48 sm:w-56 sm:h-56 object-contain group-hover:scale-[1.02] transition-transform"
+                  />
+                ) : (
+                  <div className="w-48 h-48 sm:w-56 sm:h-56 bg-slate-100 animate-pulse rounded-xl" />
+                )}
+              </Link>
+
+              <div className="space-y-1 max-w-sm">
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  Presença de Membro / Substituto
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600">
+                  Escaneie ou clique no QR Code para confirmar presença pelo celular (próprio membro ou substituto).
+                </p>
+                <Link
+                  href={memberPath}
+                  className="inline-block text-[11px] font-mono text-bni-red hover:underline pt-1 break-all"
+                >
+                  {cleanBase}{memberPath}
+                </Link>
+              </div>
+
+              <Link
+                href={memberPath}
+                className="w-full py-3 px-4 bg-bni-red hover:bg-bni-darkred text-white font-bold rounded-xl text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <Smartphone className="w-4 h-4" />
+                Acessar Presença (Membro / Substituto)
+              </Link>
             </div>
 
-            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
-              {visitorQrDataUrl ? (
-                <img
-                  src={visitorQrDataUrl}
-                  alt="QR Code Visitante ou Convidado"
-                  className="w-48 h-48 sm:w-56 sm:h-56 object-contain"
-                />
-              ) : (
-                <div className="w-48 h-48 sm:w-56 sm:h-56 bg-slate-100 animate-pulse rounded-xl" />
-              )}
-            </div>
+            {/* QR Code 2: Visitantes e Convidados */}
+            <div className="rounded-2xl border-2 border-blue-100 bg-gradient-to-b from-blue-50/40 to-white p-5 sm:p-6 flex flex-col items-center text-center space-y-4">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-extrabold uppercase tracking-wider">
+                <Users className="w-4 h-4" />
+                QR Code • Visitante / Convidado
+              </div>
 
-            <div className="space-y-1 max-w-sm">
-              <h3 className="text-lg font-extrabold text-slate-900">
-                Visitante ou Convidado
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600">
-                Escaneie para preencher seu Nome, Empresa, Telefone e Grupo BNI (caso seja visitante).
-              </p>
-              <p className="text-[11px] font-mono text-slate-400 pt-1 break-all">
-                {cleanBase}/presenca-visitante
-              </p>
-            </div>
+              <Link
+                href={visitorPath}
+                title="Clique para abrir a página de presença de Visitante / Convidado"
+                className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 hover:border-blue-600 hover:shadow-md transition-all group cursor-pointer"
+              >
+                {visitorQrDataUrl ? (
+                  <img
+                    src={visitorQrDataUrl}
+                    alt="QR Code Visitante ou Convidado"
+                    className="w-48 h-48 sm:w-56 sm:h-56 object-contain group-hover:scale-[1.02] transition-transform"
+                  />
+                ) : (
+                  <div className="w-48 h-48 sm:w-56 sm:h-56 bg-slate-100 animate-pulse rounded-xl" />
+                )}
+              </Link>
 
-            <Link
-              href="/presenca-visitante"
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
-            >
-              <Smartphone className="w-4 h-4" />
-              Acessar Visitante / Convidado
-            </Link>
+              <div className="space-y-1 max-w-sm">
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  Visitante ou Convidado
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600">
+                  Escaneie ou clique no QR Code para preencher seu Nome, Empresa, Telefone e Grupo BNI.
+                </p>
+                <Link
+                  href={visitorPath}
+                  className="inline-block text-[11px] font-mono text-blue-600 hover:underline pt-1 break-all"
+                >
+                  {cleanBase}{visitorPath}
+                </Link>
+              </div>
+
+              <Link
+                href={visitorPath}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <Smartphone className="w-4 h-4" />
+                Acessar Visitante / Convidado
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Cards de Acesso Rápido */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
         {/* Card 1: Membro / Substituto */}
         <Link
-          href="/presenca-membro"
+          href={memberPath}
           className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:border-bni-red transition-all flex flex-col justify-between"
         >
           <div>
@@ -319,7 +358,7 @@ export default function HomePage() {
 
         {/* Card 2: Visitante ou Convidado */}
         <Link
-          href="/presenca-visitante"
+          href={visitorPath}
           className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:border-blue-600 transition-all flex flex-col justify-between"
         >
           <div>

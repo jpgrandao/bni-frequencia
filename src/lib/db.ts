@@ -1,11 +1,22 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 // Utilizamos eval('require') para garantir que o bundler do Next.js carregue o módulo nativo do Node 22/24 em runtime
 const getSqlite = () => {
   const req = eval('require');
   return req('node:sqlite');
 };
+
+export function generateAccessToken(): string {
+  return crypto.randomBytes(6).toString('hex');
+}
+
+export function hashPasswordSync(plain: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(plain, salt, 64).toString('hex');
+  return `scrypt:${salt}:${derived}`;
+}
 
 export interface Member {
   id: number;
@@ -23,6 +34,7 @@ export interface Assembly {
   location: string;
   meeting_date: string;
   status: 'open' | 'closed';
+  access_token?: string;
   created_at: string;
   closed_at: string | null;
 }
@@ -67,6 +79,8 @@ declare global {
   var __bni_db: any;
   // eslint-disable-next-line no-var
   var __bni_digits_synced: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __bni_security_synced: boolean | undefined;
 }
 
 export function getDb() {
@@ -74,6 +88,13 @@ export function getDb() {
     if (!global.__bni_digits_synced) {
       syncMemberLast3Digits(global.__bni_db);
       global.__bni_digits_synced = true;
+    }
+    if (!global.__bni_security_synced) {
+      try {
+        global.__bni_db.exec("ALTER TABLE assemblies ADD COLUMN access_token TEXT DEFAULT '';");
+      } catch (_) {}
+      syncAssemblyTokens(global.__bni_db);
+      global.__bni_security_synced = true;
     }
     return global.__bni_db;
   }
@@ -114,6 +135,7 @@ export function getDb() {
       location TEXT NOT NULL,
       meeting_date TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
+      access_token TEXT DEFAULT '',
       created_at TEXT NOT NULL,
       closed_at TEXT
     );
@@ -154,19 +176,59 @@ export function getDb() {
   try {
     db.exec("ALTER TABLE visitor_attendances ADD COLUMN invited_by TEXT DEFAULT '';");
   } catch (_) {}
+  try {
+    db.exec("ALTER TABLE assemblies ADD COLUMN access_token TEXT DEFAULT '';");
+  } catch (_) {}
 
-  // Configurar senha padrão do administrador caso não exista
+  // Configurar segredo de sessão persistente caso não exista
+  const checkSecret = db.prepare('SELECT value FROM settings WHERE key = ?').get('session_secret') as
+    | { value: string }
+    | undefined;
+  if (!checkSecret || !checkSecret.value) {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'session_secret',
+      crypto.randomBytes(32).toString('hex')
+    );
+  }
+
+  // Configurar senha padrão do administrador (com hash scrypt) caso não exista, ou migrar texto puro
   const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  const checkSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_password');
+  const checkSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_password') as
+    | { value: string }
+    | undefined;
   if (!checkSetting) {
-    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('admin_password', defaultAdminPassword);
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(
+      'admin_password',
+      hashPasswordSync(defaultAdminPassword)
+    );
+  } else if (!checkSetting.value.startsWith('scrypt:')) {
+    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(
+      hashPasswordSync(checkSetting.value),
+      'admin_password'
+    );
   }
 
   syncMemberLast3Digits(db);
+  syncAssemblyTokens(db);
 
   global.__bni_db = db;
   global.__bni_digits_synced = true;
+  global.__bni_security_synced = true;
   return db;
+}
+
+function syncAssemblyTokens(db: any) {
+  try {
+    const assemblies = db
+      .prepare("SELECT id, access_token FROM assemblies WHERE access_token IS NULL OR access_token = ''")
+      .all() as { id: number; access_token?: string }[];
+    const updateStmt = db.prepare('UPDATE assemblies SET access_token = ? WHERE id = ?');
+    for (const a of assemblies) {
+      updateStmt.run(generateAccessToken(), a.id);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar tokens das assembleias:', err);
+  }
 }
 
 function syncMemberLast3Digits(db: any) {

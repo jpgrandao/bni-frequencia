@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { getDb } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +15,12 @@ function formatPtBrDate(isoDate: string): string {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
+
   try {
     const { id } = await context.params;
     const assemblyId = Number(id);

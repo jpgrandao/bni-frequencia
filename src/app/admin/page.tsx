@@ -26,7 +26,11 @@ import {
   Pencil,
   Clock,
   X,
+  KeyRound,
+  QrCode,
+  ExternalLink,
 } from 'lucide-react';
+import Link from 'next/link';
 
 interface AssemblyRow {
   id: number;
@@ -34,6 +38,7 @@ interface AssemblyRow {
   location: string;
   meeting_date: string;
   status: 'open' | 'closed';
+  access_token?: string;
   member_count: number;
   visitor_total_count: number;
   visitante_count: number;
@@ -155,11 +160,26 @@ export default function AdminPage() {
     null
   );
 
+  // Modal de Alteração de Senha do Admin
+  const [showPassModal, setShowPassModal] = useState(false);
+  const [currentAdminPass, setCurrentAdminPass] = useState('');
+  const [newAdminPass, setNewAdminPass] = useState('');
+  const [savingPass, setSavingPass] = useState(false);
+
   useEffect(() => {
-    const savedAuth = sessionStorage.getItem('bni_admin_auth');
-    if (savedAuth === 'true') {
-      setIsAuthenticated(true);
-    }
+    fetch('/api/admin/auth')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+        } else {
+          sessionStorage.removeItem('bni_admin_auth');
+          setIsAuthenticated(false);
+        }
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -198,15 +218,78 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' }),
+      });
+    } catch {
+      // ignore
+    }
     sessionStorage.removeItem('bni_admin_auth');
     setIsAuthenticated(false);
+  };
+
+  const handleChangeAdminPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentAdminPass || newAdminPass.trim().length < 6) {
+      showNotice('error', 'A nova senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    setSavingPass(true);
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_password',
+          password: currentAdminPass,
+          newPassword: newAdminPass.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotice('error', data.error || 'Erro ao alterar senha.');
+        return;
+      }
+      showNotice('success', data.message || 'Senha atualizada com sucesso!');
+      setShowPassModal(false);
+      setCurrentAdminPass('');
+      setNewAdminPass('');
+    } catch {
+      showNotice('error', 'Erro ao atualizar senha.');
+    } finally {
+      setSavingPass(false);
+    }
+  };
+
+  const handleRegenerateToken = async (assemblyId: number) => {
+    try {
+      const res = await fetch('/api/admin/assemblies', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'regenerate_token', assemblyId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotice('success', data.message || 'Novo código gerado!');
+        fetchAssemblies();
+      }
+    } catch {
+      showNotice('error', 'Erro ao gerar novo código QR.');
+    }
   };
 
   const fetchAssemblies = async () => {
     setLoadingAssemblies(true);
     try {
       const res = await fetch('/api/admin/assemblies');
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       const data = await res.json();
       setAssemblies(data.assemblies || []);
       setTotalActiveMembers(data.totalActiveMembers || 0);
@@ -628,7 +711,7 @@ export default function AdminPage() {
                 required
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Digite a senha (padrão: admin123)"
+                placeholder="Digite a senha de administrador"
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
               />
             </div>
@@ -646,12 +729,6 @@ export default function AdminPage() {
           >
             Entrar no Painel
           </button>
-
-          <div className="text-center pt-2">
-            <span className="text-[11px] text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-              Senha inicial padrão: <strong>admin123</strong>
-            </span>
-          </div>
         </form>
       </div>
     );
@@ -705,6 +782,14 @@ export default function AdminPage() {
           >
             <Users className="w-4 h-4" />
             Membros ({members.length})
+          </button>
+
+          <button
+            onClick={() => setShowPassModal(true)}
+            title="Alterar Senha do Administrador"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            <KeyRound className="w-4 h-4" />
           </button>
 
           <button
@@ -893,6 +978,42 @@ export default function AdminPage() {
                               Convidados: <strong>{a.convidado_count}</strong>
                             </span>
                           </div>
+
+                          {a.access_token && (
+                            <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                                <QrCode className="w-3.5 h-3.5 text-bni-red" />
+                                Token QR: {a.access_token}
+                              </span>
+                              {a.status === 'open' && (
+                                <>
+                                  <Link
+                                    href={`/presenca-membro?t=${encodeURIComponent(a.access_token)}`}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-red-50 text-bni-red hover:bg-red-100 border border-red-200 transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Link Membro
+                                  </Link>
+                                  <Link
+                                    href={`/presenca-visitante?t=${encodeURIComponent(a.access_token)}`}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Link Visitante
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRegenerateToken(a.id)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                                    title="Gerar um novo código único para o QR Code desta reunião"
+                                  >
+                                    <RefreshCw className="w-3 h-3" />
+                                    Trocar Token
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Ações da Assembleia */}
@@ -1595,6 +1716,85 @@ export default function AdminPage() {
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-bni-red hover:bg-bni-darkred shadow-sm transition-colors"
                 >
                   {savingTime ? 'Salvando...' : 'Salvar Horário'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Alteração de Senha do Admin */}
+      {showPassModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-bni-lightred text-bni-red flex items-center justify-center shrink-0">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Alterar Senha do Administrador
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Protegida com criptografia scrypt no servidor.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPassModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangeAdminPassword} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Senha Atual *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={currentAdminPass}
+                  onChange={(e) => setCurrentAdminPass(e.target.value)}
+                  placeholder="Digite a senha atual"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Nova Senha (mínimo 6 caracteres) *
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newAdminPass}
+                  onChange={(e) => setNewAdminPass(e.target.value)}
+                  placeholder="Digite uma nova senha forte"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowPassModal(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPass}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-bni-red hover:bg-bni-darkred shadow-sm transition-colors"
+                >
+                  {savingPass ? 'Salvando...' : 'Atualizar Senha'}
                 </button>
               </div>
             </form>

@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, formatTimeNow } from '@/lib/db';
+import { checkRateLimit, getClientIp } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(`attendance-visitor:${ip}`, 20, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: `Muitas requisições em sequência. Aguarde ${rate.retryAfterSec} segundos.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
-    const { name, company, phone, type, bniGroup, invitedBy } = body;
+    const { name, company, phone, type, bniGroup, invitedBy, token = '' } = body;
 
     if (!name?.trim() || !company?.trim() || !phone?.trim()) {
       return NextResponse.json(
@@ -35,6 +47,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Não há nenhuma assembleia aberta no momento para registrar presença.' },
         { status: 400 }
+      );
+    }
+
+    if (
+      activeAssembly.access_token &&
+      String(token || '').trim() !== String(activeAssembly.access_token).trim()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Código da reunião inválido ou expirado. Escaneie o QR Code oficial da assembleia aberta.',
+        },
+        { status: 403 }
       );
     }
 

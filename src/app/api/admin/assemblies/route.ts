@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, formatDateISO, formatTimeNow } from '@/lib/db';
+import { getDb, formatDateISO, formatTimeNow, generateAccessToken } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -71,6 +75,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { meeting_number, location, meeting_date, status = 'open' } = body;
@@ -84,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     const db = getDb();
     const now = formatDateISO();
+    const accessToken = generateAccessToken();
 
     // Se a nova assembleia já nascer aberta, fecha outras assembleias que estavam abertas
     if (status === 'open') {
@@ -94,14 +102,15 @@ export async function POST(req: NextRequest) {
 
     const result = db
       .prepare(
-        `INSERT INTO assemblies (meeting_number, location, meeting_date, status, created_at, closed_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO assemblies (meeting_number, location, meeting_date, status, access_token, created_at, closed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         meeting_number.trim(),
         location.trim(),
         meeting_date.trim(),
         status === 'closed' ? 'closed' : 'open',
+        accessToken,
         now,
         status === 'closed' ? now : null
       );
@@ -109,6 +118,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       id: Number(result.lastInsertRowid),
+      access_token: accessToken,
       message: 'Assembleia criada com sucesso!',
     });
   } catch (error: any) {
@@ -118,10 +128,31 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const db = getDb();
     const now = formatDateISO();
+
+    // Ação de regenerar token do QR Code da assembleia
+    if (body.action === 'regenerate_token') {
+      const { assemblyId } = body;
+      if (!assemblyId) {
+        return NextResponse.json({ error: 'ID da assembleia é obrigatório.' }, { status: 400 });
+      }
+      const newToken = generateAccessToken();
+      db.prepare('UPDATE assemblies SET access_token = ? WHERE id = ?').run(
+        newToken,
+        Number(assemblyId)
+      );
+      return NextResponse.json({
+        success: true,
+        access_token: newToken,
+        message: 'Novo código único de QR Code gerado para esta reunião!',
+      });
+    }
 
     // Ação de alternar presença manual de um membro pelo Admin
     if (body.action === 'toggle_member_attendance') {
@@ -263,6 +294,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const authError = requireAdmin(req);
+  if (authError) return authError;
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

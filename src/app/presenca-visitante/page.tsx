@@ -14,6 +14,7 @@ import {
   Calendar,
   MapPin,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 
 interface ActiveAssembly {
@@ -22,6 +23,7 @@ interface ActiveAssembly {
   location: string;
   meeting_date: string;
   status: 'open' | 'closed';
+  access_token?: string;
 }
 
 interface MemberOption {
@@ -50,7 +52,10 @@ function formatPhone(value: string): string {
 
 export default function PresencaVisitantePage() {
   const [assembly, setAssembly] = useState<ActiveAssembly | null>(null);
+  const [assemblyToken, setAssemblyToken] = useState<string>('');
+  const [invalidUrlToken, setInvalidUrlToken] = useState(false);
   const [members, setMembers] = useState<MemberOption[]>([]);
+  const [searchingMembers, setSearchingMembers] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState('');
@@ -59,9 +64,9 @@ export default function PresencaVisitantePage() {
   const [isVisitor, setIsVisitor] = useState(false);
   const [bniGroup, setBniGroup] = useState('');
 
-  // Convidado por
-  const [invitedByOption, setInvitedByOption] = useState('');
-  const [customInvitedBy, setCustomInvitedBy] = useState('');
+  // Convidado por (busca por 2+ letras ou nome livre)
+  const [invitedBySearch, setInvitedBySearch] = useState('');
+  const [selectedInviter, setSelectedInviter] = useState<string>('');
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -78,10 +83,35 @@ export default function PresencaVisitantePage() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const urlParams =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search)
+          : new URLSearchParams();
+      const urlToken = (urlParams.get('t') || urlParams.get('token') || '').trim();
+
       const res = await fetch('/api/public/active-assembly');
       const data = await res.json();
-      setAssembly(data.assembly || null);
-      setMembers(data.members || []);
+      const active: ActiveAssembly | null = data.assembly || null;
+      setAssembly(active);
+
+      if (active?.access_token) {
+        if (urlToken && urlToken !== active.access_token) {
+          setInvalidUrlToken(true);
+          setAssemblyToken('');
+        } else {
+          setInvalidUrlToken(false);
+          setAssemblyToken(active.access_token);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('bni_assembly_token', active.access_token);
+            if (!urlToken) {
+              const newUrl = `${window.location.pathname}?t=${encodeURIComponent(active.access_token)}`;
+              window.history.replaceState(null, '', newUrl);
+            }
+          }
+        }
+      } else {
+        setAssemblyToken('');
+      }
     } catch {
       setErrorMsg('Erro ao carregar dados da assembleia.');
     } finally {
@@ -92,6 +122,42 @@ export default function PresencaVisitantePage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const cleanSearch = invitedBySearch.trim();
+    if (!assembly || !assemblyToken || cleanSearch.length < 2 || selectedInviter === cleanSearch) {
+      setMembers([]);
+      setSearchingMembers(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchingMembers(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/public/active-assembly?t=${encodeURIComponent(assemblyToken)}&q=${encodeURIComponent(cleanSearch)}`
+        );
+        const data = await res.json();
+        if (!cancelled) {
+          setMembers(data.members || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setMembers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSearchingMembers(false);
+        }
+      }
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [invitedBySearch, assembly, assemblyToken, selectedInviter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,13 +173,10 @@ export default function PresencaVisitantePage() {
       return;
     }
 
-    const finalInvitedBy =
-      invitedByOption === '__outro__'
-        ? customInvitedBy.trim()
-        : invitedByOption.trim();
+    const finalInvitedBy = (selectedInviter || invitedBySearch).trim();
 
-    if (!finalInvitedBy) {
-      setErrorMsg('Por favor, selecione quem o convidou ou digite o nome escolhendo a opção "Outro".');
+    if (!finalInvitedBy || finalInvitedBy.length < 2) {
+      setErrorMsg('Por favor, informe o nome do membro que o convidou.');
       return;
     }
 
@@ -129,6 +192,7 @@ export default function PresencaVisitantePage() {
           type: isVisitor ? 'visitante' : 'convidado',
           bniGroup: isVisitor ? bniGroup.trim() : '',
           invitedBy: finalInvitedBy,
+          token: assemblyToken,
         }),
       });
       const data = await res.json();
@@ -160,8 +224,9 @@ export default function PresencaVisitantePage() {
     setPhone('');
     setIsVisitor(false);
     setBniGroup('');
-    setInvitedByOption('');
-    setCustomInvitedBy('');
+    setInvitedBySearch('');
+    setSelectedInviter('');
+    setMembers([]);
     setErrorMsg('');
   };
 
@@ -200,6 +265,39 @@ export default function PresencaVisitantePage() {
           >
             Ir para Administração
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (invalidUrlToken) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 shadow-sm text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+          QR Code de Reunião Anterior
+        </h1>
+        <p className="text-slate-600 text-sm max-w-md mx-auto">
+          O link ou QR Code utilizado pertence a outra reunião. Clique abaixo para acessar a{' '}
+          <strong>Reunião #{assembly.meeting_number}</strong> que está aberta agora.
+        </p>
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (assembly.access_token) {
+                setInvalidUrlToken(false);
+                setAssemblyToken(assembly.access_token);
+                const newUrl = `${window.location.pathname}?t=${encodeURIComponent(assembly.access_token)}`;
+                window.history.replaceState(null, '', newUrl);
+              }
+            }}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 bg-bni-red hover:bg-bni-darkred text-white rounded-xl text-sm font-bold transition-colors"
+          >
+            Acessar Reunião #{assembly.meeting_number} Agora
+          </button>
         </div>
       </div>
     );
@@ -335,57 +433,90 @@ export default function PresencaVisitantePage() {
             </div>
           </div>
 
-          {/* Campo 4: Membro que o convidou */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-100">
-            <label htmlFor="invited-by-select" className="block text-sm font-bold text-slate-800">
+          {/* Campo 4: Membro que o convidou (busca protegida por mínimo de 2 letras) */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label htmlFor="invited-by-input" className="block text-sm font-bold text-slate-800">
               Membro que o convidou *
             </label>
             <div className="relative">
-              <UserCheck className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                id="invited-by-select"
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="invited-by-input"
+                type="text"
                 required
-                value={invitedByOption}
+                value={invitedBySearch}
                 onChange={(e) => {
-                  setInvitedByOption(e.target.value);
-                  if (e.target.value !== '__outro__') {
-                    setCustomInvitedBy('');
-                  }
+                  setInvitedBySearch(e.target.value);
+                  setSelectedInviter('');
                 }}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-bni-red focus:border-bni-red cursor-pointer"
-              >
-                <option value="">Selecione o membro que te convidou...</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.name}>
-                    {m.name} {m.company ? `(${m.company})` : ''}
-                  </option>
-                ))}
-                <option value="__outro__">➕ Outro (escrever nome)</option>
-              </select>
+                placeholder="Digite pelo menos 2 letras do nome de quem convidou..."
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-bni-red focus:border-bni-red"
+              />
             </div>
 
-            {/* Campo extra para quando escolher "Outro" */}
-            {invitedByOption === '__outro__' && (
-              <div className="pt-2 pl-3 border-l-2 border-bni-red space-y-1.5">
-                <label htmlFor="custom-invited-by" className="block text-xs font-bold text-slate-700">
-                  Nome de quem te convidou *
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    id="custom-invited-by"
-                    type="text"
-                    required
-                    value={customInvitedBy}
-                    onChange={(e) => setCustomInvitedBy(e.target.value)}
-                    placeholder="Digite o nome completo de quem te convidou"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red focus:border-bni-red"
-                  />
-                </div>
+            {selectedInviter && (
+              <div className="p-2.5 rounded-xl bg-bni-lightred border border-red-200 flex items-center justify-between gap-2 text-xs">
+                <span className="text-slate-800">
+                  Convidado por: <strong className="text-bni-red">{selectedInviter}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedInviter('');
+                    setInvitedBySearch('');
+                  }}
+                  className="font-bold text-bni-red hover:underline"
+                >
+                  Alterar
+                </button>
               </div>
             )}
+
+            {!selectedInviter && invitedBySearch.trim().length >= 2 && (
+              <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+                {searchingMembers ? (
+                  <div className="p-3 text-center text-xs text-slate-500">
+                    Buscando membros...
+                  </div>
+                ) : (
+                  <>
+                    {members.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedInviter(m.name);
+                          setInvitedBySearch(m.name);
+                          setMembers([]);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 hover:bg-white flex items-center justify-between gap-2 text-xs sm:text-sm transition-colors"
+                      >
+                        <div>
+                          <span className="font-semibold text-slate-900">{m.name}</span>
+                          {m.company && (
+                            <span className="text-slate-500 ml-1.5 text-xs">({m.company})</span>
+                          )}
+                        </div>
+                        <UserCheck className="w-4 h-4 text-bni-red shrink-0" />
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedInviter(invitedBySearch.trim());
+                        setMembers([]);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 bg-slate-100/70 hover:bg-white text-xs font-semibold text-slate-700 transition-colors"
+                    >
+                      ➕ Usar nome digitado: &ldquo;{invitedBySearch.trim()}&rdquo;
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
             <p className="text-[11px] text-slate-500">
-              Selecione na lista ou clique em &ldquo;Outro&rdquo; caso o nome de quem te convidou não esteja cadastrado.
+              Digite pelo menos 2 letras para buscar na lista de membros ou informe o nome de quem te convidou.
             </p>
           </div>
 
