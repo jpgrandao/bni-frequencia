@@ -7,7 +7,8 @@ services:
       - bni_data:/app/data
     environment:
       - NODE_ENV=production
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-f6dfy3g5w53w2a5h85alt6}
       - TZ=America/Sao_Paulo
     deploy:
       replicas: 1

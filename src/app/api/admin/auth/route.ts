@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, password, newPassword } = body;
+    const { action, username, password, newUsername, newPassword } = body;
 
     if (action === 'logout') {
       const res = NextResponse.json({ success: true });
@@ -44,39 +44,59 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb();
-    const row = db
+    const userRow = db
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get('admin_username') as { value: string } | undefined;
+    const passRow = db
       .prepare('SELECT value FROM settings WHERE key = ?')
       .get('admin_password') as { value: string } | undefined;
 
-    const currentPassHash = row?.value || hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
+    const currentUsername = userRow?.value || process.env.ADMIN_USERNAME || process.env.ADMIN_USER || 'admin';
+    const currentPassHash =
+      passRow?.value || hashPassword(process.env.ADMIN_PASSWORD || 'f6dfy3g5w53w2a5h85alt6');
 
     if (action === 'change_password') {
       if (!verifyPassword(String(password || ''), currentPassHash)) {
         return NextResponse.json({ error: 'Senha atual incorreta.' }, { status: 401 });
       }
-      if (!newPassword || String(newPassword).trim().length < 6) {
-        return NextResponse.json(
-          { error: 'A nova senha deve ter pelo menos 6 caracteres.' },
-          { status: 400 }
+
+      if (newUsername && newUsername.trim().length >= 3) {
+        db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(
+          newUsername.trim(),
+          'admin_username'
         );
       }
-      const newHash = hashPassword(String(newPassword).trim());
-      db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(
-        newHash,
-        'admin_password'
-      );
+
+      if (newPassword) {
+        if (String(newPassword).trim().length < 6) {
+          return NextResponse.json(
+            { error: 'A nova senha deve ter pelo menos 6 caracteres.' },
+            { status: 400 }
+          );
+        }
+        const newHash = hashPassword(String(newPassword).trim());
+        db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(
+          newHash,
+          'admin_password'
+        );
+      }
+
       resetRateLimit(rateKey);
       const token = createAdminSessionToken();
       const res = NextResponse.json({
         success: true,
-        message: 'Senha do administrador atualizada com segurança!',
+        message: 'Credenciais de administrador atualizadas com segurança!',
       });
       attachAdminCookie(res, req, token);
       return res;
     }
 
     // Login normal
-    if (verifyPassword(String(password || ''), currentPassHash)) {
+    const inputUser = String(username || '').trim().toLowerCase();
+    const expectedUser = currentUsername.trim().toLowerCase();
+    const passwordValid = verifyPassword(String(password || ''), currentPassHash);
+
+    if (inputUser === expectedUser && passwordValid) {
       resetRateLimit(rateKey);
       const token = createAdminSessionToken();
       const res = NextResponse.json({ success: true });
@@ -84,7 +104,10 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    return NextResponse.json({ error: 'Senha de administrador incorreta.' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Usuário ou senha de administrador incorretos.' },
+      { status: 401 }
+    );
   } catch (error: any) {
     console.error('Erro na autenticação admin:', error);
     return NextResponse.json({ error: 'Erro interno na autenticação.' }, { status: 500 });

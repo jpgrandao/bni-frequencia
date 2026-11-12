@@ -191,21 +191,35 @@ export function getDb() {
     );
   }
 
-  // Configurar senha padrão do administrador (com hash scrypt) caso não exista, ou migrar texto puro
-  const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  const checkSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_password') as
+  // Configurar credenciais padrão do administrador (usuário e senha com hash scrypt)
+  const defaultAdminUsername = process.env.ADMIN_USERNAME || process.env.ADMIN_USER || 'admin';
+  const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'f6dfy3g5w53w2a5h85alt6';
+
+  const checkCredV2 = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_cred_v2') as
     | { value: string }
     | undefined;
-  if (!checkSetting) {
-    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(
+
+  if (!checkCredV2) {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'admin_username',
+      defaultAdminUsername
+    );
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
       'admin_password',
       hashPasswordSync(defaultAdminPassword)
     );
-  } else if (!checkSetting.value.startsWith('scrypt:')) {
-    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(
-      hashPasswordSync(checkSetting.value),
-      'admin_password'
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'admin_cred_v2',
+      '1'
     );
+  } else {
+    const checkUser = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_username');
+    if (!checkUser) {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(
+        'admin_username',
+        defaultAdminUsername
+      );
+    }
   }
 
   syncMemberLast3Digits(db);

@@ -29,6 +29,7 @@ import {
   KeyRound,
   QrCode,
   ExternalLink,
+  User,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -97,6 +98,7 @@ function getTodayISO(): string {
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState<'assemblies' | 'members'>('assemblies');
@@ -160,9 +162,10 @@ export default function AdminPage() {
     null
   );
 
-  // Modal de Alteração de Senha do Admin
+  // Modal de Alteração de Credenciais do Admin
   const [showPassModal, setShowPassModal] = useState(false);
   const [currentAdminPass, setCurrentAdminPass] = useState('');
+  const [newAdminUser, setNewAdminUser] = useState('');
   const [newAdminPass, setNewAdminPass] = useState('');
   const [savingPass, setSavingPass] = useState(false);
 
@@ -203,11 +206,14 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: loginPassword }),
+        body: JSON.stringify({
+          username: loginUsername.trim(),
+          password: loginPassword,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setLoginError(data.error || 'Senha incorreta.');
+        setLoginError(data.error || 'Usuário ou senha incorretos.');
         return;
       }
       sessionStorage.setItem('bni_admin_auth', 'true');
@@ -234,10 +240,19 @@ export default function AdminPage() {
 
   const handleChangeAdminPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentAdminPass || newAdminPass.trim().length < 6) {
+    if (!currentAdminPass) {
+      showNotice('error', 'Informe sua senha atual.');
+      return;
+    }
+    if (newAdminPass && newAdminPass.trim().length < 6) {
       showNotice('error', 'A nova senha deve ter pelo menos 6 caracteres.');
       return;
     }
+    if (!newAdminPass && !newAdminUser.trim()) {
+      showNotice('error', 'Informe um novo usuário ou uma nova senha.');
+      return;
+    }
+
     setSavingPass(true);
     try {
       const res = await fetch('/api/admin/auth', {
@@ -246,20 +261,22 @@ export default function AdminPage() {
         body: JSON.stringify({
           action: 'change_password',
           password: currentAdminPass,
-          newPassword: newAdminPass.trim(),
+          newUsername: newAdminUser.trim() || undefined,
+          newPassword: newAdminPass ? newAdminPass.trim() : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        showNotice('error', data.error || 'Erro ao alterar senha.');
+        showNotice('error', data.error || 'Erro ao alterar credenciais.');
         return;
       }
-      showNotice('success', data.message || 'Senha atualizada com sucesso!');
+      showNotice('success', data.message || 'Credenciais atualizadas com sucesso!');
       setShowPassModal(false);
       setCurrentAdminPass('');
+      setNewAdminUser('');
       setNewAdminPass('');
     } catch {
-      showNotice('error', 'Erro ao atualizar senha.');
+      showNotice('error', 'Erro ao atualizar credenciais.');
     } finally {
       setSavingPass(false);
     }
@@ -695,20 +712,39 @@ export default function AdminPage() {
             Área do Administrador
           </h1>
           <p className="text-xs text-slate-500">
-            Digite a senha de administração para gerenciar assembleias e membros.
+            Digite o usuário e senha de administração para gerenciar assembleias e membros.
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
             <label className="block text-sm font-bold text-slate-800">
-              Senha do Administrador
+              Usuário
+            </label>
+            <div className="relative">
+              <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                required
+                autoComplete="username"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="Digite o usuário de administrador"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-sm font-bold text-slate-800">
+              Senha
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder="Digite a senha de administrador"
@@ -1723,7 +1759,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Modal de Alteração de Senha do Admin */}
+      {/* Modal de Alteração de Credenciais do Admin */}
       {showPassModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-5">
@@ -1734,10 +1770,10 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    Alterar Senha do Administrador
+                    Alterar Credenciais de Administrador
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Protegida com criptografia scrypt no servidor.
+                    Protegidas com criptografia scrypt no servidor.
                   </p>
                 </div>
               </div>
@@ -1768,15 +1804,27 @@ export default function AdminPage() {
 
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-slate-700">
-                  Nova Senha (mínimo 6 caracteres) *
+                  Novo Usuário (deixe em branco para manter)
+                </label>
+                <input
+                  type="text"
+                  value={newAdminUser}
+                  onChange={(e) => setNewAdminUser(e.target.value)}
+                  placeholder="Novo nome de usuário (ex: admin)"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Nova Senha (mínimo 6 caracteres, ou deixe em branco para manter)
                 </label>
                 <input
                   type="password"
-                  required
                   minLength={6}
                   value={newAdminPass}
                   onChange={(e) => setNewAdminPass(e.target.value)}
-                  placeholder="Digite uma nova senha forte"
+                  placeholder="Digite a nova senha"
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-bni-red"
                 />
               </div>
@@ -1794,7 +1842,7 @@ export default function AdminPage() {
                   disabled={savingPass}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-bni-red hover:bg-bni-darkred shadow-sm transition-colors"
                 >
-                  {savingPass ? 'Salvando...' : 'Atualizar Senha'}
+                  {savingPass ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>
